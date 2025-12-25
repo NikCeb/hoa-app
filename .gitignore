@@ -41,3 +41,57 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase - Sensitive Configuration Files
+firebase_options.dart
+google-services.json
+GoogleService-Info.plist
+.firebaserc
+
+# Environment Variables & API Keys
+.env
+.env.local
+.env.*.local
+*.key
+*.keystore
+key.properties
+*.jks
+
+# iOS Sensitive Files
+**/ios/Runner/GoogleService-Info.plist
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/ServiceDefinitions.json
+**/ios/Runner.xcworkspace
+
+# Android Sensitive Files
+**/android/app/google-services.json
+**/android/key.properties
+**/android/app/release/
+**/android/app/build/
+**/android/local.properties
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/gradle-wrapper.jar
+
+# macOS
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Pods/
+
+# Web
+**/web/*.js
+**/web/*.part.js
+**/web/*.js.deps
+**/web/*.js.map
+
+# Coverage
+coverage/
+
+# Exceptions to above rules - if you need to track specific files
+!**/android/gradle-wrapper.jar
+!**/android/gradlew
+!**/android/gradlew.bat
