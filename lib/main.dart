@@ -7,7 +7,7 @@ import 'domain/services/verification_service.dart';
 import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/auth/register_screen.dart';
 import 'presentation/screens/admin/admin_dashboard.dart';
-import 'presentation/screens/user/user_dashboard.dart';
+import 'presentation/screens/user/main_navigation.dart';
 import 'core/constants/app_colors.dart';
 
 void main() async {
@@ -50,7 +50,7 @@ class MyApp extends StatelessWidget {
           '/login': (context) => const LoginScreen(),
           '/register': (context) => const RegisterScreen(),
           '/admin-dashboard': (context) => const AdminDashboard(),
-          '/user-dashboard': (context) => const UserDashboard(),
+          '/user-dashboard': (context) => const MainNavigation(),
         },
       ),
     );
@@ -93,7 +93,7 @@ class AuthWrapper extends StatelessWidget {
                 if (user.isAdmin) {
                   return const AdminDashboard();
                 } else {
-                  return const UserDashboard();
+                  return const MainNavigation();
                 }
               }
 

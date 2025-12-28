@@ -140,18 +140,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 Container(
                   width: 80,
                   height: 80,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColors.white,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.group,
                     size: 40,
                     color: AppColors.primaryBlue,
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text(
+                const Text(
                   AppStrings.appName,
                   style: TextStyle(
                     fontSize: 28,
@@ -216,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 onPressed: _handleLogin,
                               ),
                         const SizedBox(height: 16),
-                        Row(
+                        const Row(
                           children: [
                             Expanded(child: Divider(color: AppColors.grey)),
                             Padding(
@@ -243,7 +243,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           onTap: () {
                             Navigator.pushNamed(context, '/register');
                           },
-                          child: Text(
+                          child: const Text(
                             AppStrings.dontHaveAccount,
                             textAlign: TextAlign.center,
                             style: TextStyle(

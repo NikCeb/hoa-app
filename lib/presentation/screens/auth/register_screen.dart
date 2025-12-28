@@ -140,7 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           icon: Icon(Icons.arrow_back, color: AppColors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: const Text(
           AppStrings.register,
           style: TextStyle(color: AppColors.white),
         ),
@@ -160,7 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
+                    const Text(
                       'Personal Information',
                       style: TextStyle(
                         fontSize: 18,
@@ -201,7 +201,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       label: AppStrings.suffix,
                     ),
                     const SizedBox(height: 24),
-                    Text(
+                    const Text(
                       'Address Information',
                       style: TextStyle(
                         fontSize: 18,
@@ -262,7 +262,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
                     const SizedBox(height: 24),
-                    Text(
+                    const Text(
                       'Account Credentials',
                       style: TextStyle(
                         fontSize: 18,
@@ -324,7 +324,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       onTap: () {
                         Navigator.pop(context);
                       },
-                      child: Text(
+                      child: const Text(
                         AppStrings.alreadyHaveAccount,
                         textAlign: TextAlign.center,
                         style: TextStyle(
