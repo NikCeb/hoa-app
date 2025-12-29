@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:hoa_application/core/utils/message_alert.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -43,19 +44,21 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (user == null) {
-        _showError('User not found');
+        _showError('User not found', Colors.orange);
         return;
       }
 
       // Check verification status
       if (user.verificationStatus == VerificationStatus.pending) {
-        _showError(AppStrings.accountPending);
+        _showError(
+            'Your Account is still Pending Verification.', Colors.orange);
         await authRepo.signOut();
         return;
       }
 
       if (user.verificationStatus == VerificationStatus.rejected) {
-        _showError('Your account has been rejected. Please contact the admin.');
+        _showError(
+            'Your account is frozen. Please contact the admin.', Colors.orange);
         await authRepo.signOut();
         return;
       }
@@ -68,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showError(e.toString());
+        _showError('Please try again.', Colors.orange);
       }
     } finally {
       if (mounted) {
@@ -94,7 +97,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Check verification status
       if (user.verificationStatus == VerificationStatus.pending) {
-        _showError(AppStrings.accountPending);
+        _showError(
+            'Your Account is still Pending Verification.', Colors.orange);
         await authRepo.signOut();
         return;
       }
@@ -107,7 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showError(e.toString());
+        _showError('Error can\'t signing in with Google!', Colors.red);
       }
     } finally {
       if (mounted) {
@@ -116,13 +120,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-      ),
-    );
+  void _showError(String message, Color? color) {
+    showMessage(context, message, bgColor: color ?? Colors.red);
   }
 
   @override

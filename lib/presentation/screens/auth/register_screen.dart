@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:hoa_application/core/utils/message_alert.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -51,7 +52,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_passwordController.text != _confirmPasswordController.text) {
-      _showError(AppStrings.errorPasswordsDontMatch);
+      _showError('Password does not match!', Colors.red);
       return;
     }
 
@@ -111,7 +112,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     } catch (e) {
       if (mounted) {
-        _showError(e.toString());
+        _showError('Please try again.', Colors.red);
       }
     } finally {
       if (mounted) {
@@ -120,13 +121,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-      ),
-    );
+  void _showError(String message, Color? color) {
+    showMessage(context, message, bgColor: color ?? Colors.red);
   }
 
   @override
