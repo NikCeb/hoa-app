@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../../../data/models/help_request.dart';
 import '../../../../data/models/offer.dart';
 import '../../../../data/repositories/request_repository.dart';
@@ -33,6 +36,13 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
     with SingleTickerProviderStateMixin {
   final RequestRepository _repository = RequestRepository();
   late TabController _tabController;
+
+  final _auth = FirebaseAuth.instance;
+  int _pendingOffersCount = 0;
+
+  bool get _isMyRequest {
+    return widget.request.requesterId == _auth.currentUser?.uid;
+  }
 
   @override
   void initState() {
@@ -190,7 +200,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
                     ),
                   ),
                   Text(
-                    '12 Tulong', // TODO: Get from user data
+                    '${widget.request.tulongCount} Tulong',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -238,7 +248,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
                 child: _buildInfoCard(
                   icon: Icons.location_on_outlined,
                   label: 'Distance',
-                  value: '0m',
+                  value: widget.request.distanceText,
                 ),
               ),
             ],
@@ -251,6 +261,63 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
             label: 'Posted',
             value: widget.request.timeAgo,
           ),
+
+          const SizedBox(height: 32),
+
+          // ============================================
+          // OFFER TO HELP BUTTON (only if not your request)
+          // ============================================
+          if (!_isMyRequest && widget.request.isOpen)
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: _showOfferDialog,
+                icon: const Icon(Icons.volunteer_activism),
+                label: const Text(
+                  'Offer to Help',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+              ),
+            ),
+
+          // Show message if it's your own request
+          if (_isMyRequest)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue[700]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'This is your request',
+                      style: TextStyle(
+                        color: Colors.blue[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -531,6 +598,103 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
   // ============================================================
   // ACTIONS
   // ============================================================
+  Future<void> _showOfferDialog() async {
+    final messageController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Offer to Help'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Offering help for: ${widget.request.title}',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: messageController,
+              decoration: InputDecoration(
+                labelText: 'Message (Optional)',
+                hintText: 'I can help with this...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              maxLines: 3,
+              maxLength: 200,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Submit Offer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final user = _auth.currentUser;
+        if (user == null) {
+          throw Exception('Please log in to offer help');
+        }
+
+        // Get user name
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final userName = '${userData['firstName']} ${userData['lastName']}';
+
+        // Create offer
+        await _repository.createOffer(
+          requestId: widget.request.id,
+          helperName: userName,
+          message: messageController.text.trim().isEmpty
+              ? null
+              : messageController.text.trim(),
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Offer submitted successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Fluttertoast.showToast(
+            msg: 'You have already offered to help for this request.',
+            toastLength: Toast.LENGTH_LONG,
+            gravity: ToastGravity.BOTTOM,
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
+          );
+        }
+      }
+    }
+
+    messageController.dispose();
+  }
 
   Future<void> _acceptOffer(Offer offer) async {
     // Show confirmation dialog
