@@ -1,45 +1,56 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum IncidentStatus {
+  newReport,
+  underReview,
+  resolved,
+  dismissed,
+}
+
+/// Type/category of incident
 enum IncidentType {
   vandalism,
   noise,
   parking,
+  lighting,
+  garbage,
+  safety,
   maintenance,
-  security,
   other,
 }
 
-enum ReportStatus {
-  newReport,
-  underReview,
-  resolved,
-  rejected,
-}
-
+/// Represents an incident report filed by a resident
+///
+/// Data Flow:
+/// 1. User creates report → Firestore + Storage
+/// 2. Admin views → Updates status
+/// 3. Stream updates UI automatically
 class IncidentReport {
   final String id;
-  final String title;
-  final String description;
   final String reporterId;
   final String reporterName;
+  final String title;
+  final String description;
   final IncidentType type;
-  final ReportStatus status;
+  final IncidentStatus status;
   final String location;
-  final String? proofRef; // Firebase Storage reference to photo/video
+  final String? proofUrl; // Photo from Firebase Storage
+  final String? proofRef; // Storage reference path
   final DateTime reportedAt;
   final DateTime? resolvedAt;
-  final String? adminNotes;
-  final String? resolvedBy; // Admin user ID
+  final String? adminNotes; // Admin can add notes
+  final String? resolvedBy; // Admin UID who resolved it
 
   IncidentReport({
     required this.id,
-    required this.title,
-    required this.description,
     required this.reporterId,
     required this.reporterName,
+    required this.title,
+    required this.description,
     required this.type,
     required this.status,
     required this.location,
+    this.proofUrl,
     this.proofRef,
     required this.reportedAt,
     this.resolvedAt,
@@ -47,18 +58,20 @@ class IncidentReport {
     this.resolvedBy,
   });
 
-  // Factory constructor from Firestore
+  /// Create from Firestore document
   factory IncidentReport.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>;
+
     return IncidentReport(
       id: doc.id,
+      reporterId: data['reporterId'] ?? '',
+      reporterName: data['reporterName'] ?? 'Anonymous',
       title: data['title'] ?? '',
       description: data['description'] ?? '',
-      reporterId: data['reporterId'] ?? '',
-      reporterName: data['reporterName'] ?? '',
       type: _parseType(data['type']),
       status: _parseStatus(data['status']),
       location: data['location'] ?? '',
+      proofUrl: data['proofUrl'],
       proofRef: data['proofRef'],
       reportedAt:
           (data['reportedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -68,16 +81,17 @@ class IncidentReport {
     );
   }
 
-  // Convert to Map for Firestore
+  /// Convert to Map for Firestore
   Map<String, dynamic> toMap() {
     return {
-      'title': title,
-      'description': description,
       'reporterId': reporterId,
       'reporterName': reporterName,
+      'title': title,
+      'description': description,
       'type': type.name,
       'status': status.name,
       'location': location,
+      'proofUrl': proofUrl,
       'proofRef': proofRef,
       'reportedAt': Timestamp.fromDate(reportedAt),
       'resolvedAt': resolvedAt != null ? Timestamp.fromDate(resolvedAt!) : null,
@@ -86,8 +100,16 @@ class IncidentReport {
     };
   }
 
-  // Helper methods
-  String get typeLabel {
+  // ============================================================
+  // HELPER GETTERS
+  // ============================================================
+
+  bool get isNew => status == IncidentStatus.newReport;
+  bool get isUnderReview => status == IncidentStatus.underReview;
+  bool get isResolved => status == IncidentStatus.resolved;
+  bool get isDismissed => status == IncidentStatus.dismissed;
+
+  String get typeDisplayName {
     switch (type) {
       case IncidentType.vandalism:
         return 'Vandalism';
@@ -95,57 +117,80 @@ class IncidentReport {
         return 'Noise Complaint';
       case IncidentType.parking:
         return 'Parking Issue';
+      case IncidentType.lighting:
+        return 'Street Lighting';
+      case IncidentType.garbage:
+        return 'Garbage/Waste';
+      case IncidentType.safety:
+        return 'Safety Concern';
       case IncidentType.maintenance:
         return 'Maintenance';
-      case IncidentType.security:
-        return 'Security Concern';
       case IncidentType.other:
         return 'Other';
     }
   }
 
-  String get statusLabel {
+  String get statusDisplayName {
     switch (status) {
-      case ReportStatus.newReport:
+      case IncidentStatus.newReport:
         return 'New';
-      case ReportStatus.underReview:
+      case IncidentStatus.underReview:
         return 'Under Review';
-      case ReportStatus.resolved:
+      case IncidentStatus.resolved:
         return 'Resolved';
-      case ReportStatus.rejected:
-        return 'Rejected';
+      case IncidentStatus.dismissed:
+        return 'Dismissed';
+    }
+  }
+
+  String get statusColor {
+    switch (status) {
+      case IncidentStatus.newReport:
+        return '#EF4444'; // Red
+      case IncidentStatus.underReview:
+        return '#F59E0B'; // Orange
+      case IncidentStatus.resolved:
+        return '#10B981'; // Green
+      case IncidentStatus.dismissed:
+        return '#6B7280'; // Gray
     }
   }
 
   String get timeAgo {
     final difference = DateTime.now().difference(reportedAt);
+
     if (difference.inDays > 0) {
       return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
     } else if (difference.inHours > 0) {
       return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
     } else {
       return 'Just now';
     }
   }
 
-  bool get isNew => status == ReportStatus.newReport;
-  bool get isResolved => status == ReportStatus.resolved;
-  bool get hasProof => proofRef != null && proofRef!.isNotEmpty;
+  // ============================================================
+  // PARSING HELPERS
+  // ============================================================
 
-  // Parse enums
   static IncidentType _parseType(dynamic type) {
     if (type is String) {
-      switch (type) {
+      switch (type.toLowerCase()) {
         case 'vandalism':
           return IncidentType.vandalism;
         case 'noise':
           return IncidentType.noise;
         case 'parking':
           return IncidentType.parking;
+        case 'lighting':
+          return IncidentType.lighting;
+        case 'garbage':
+          return IncidentType.garbage;
+        case 'safety':
+          return IncidentType.safety;
         case 'maintenance':
           return IncidentType.maintenance;
-        case 'security':
-          return IncidentType.security;
         default:
           return IncidentType.other;
       }
@@ -153,34 +198,37 @@ class IncidentReport {
     return IncidentType.other;
   }
 
-  static ReportStatus _parseStatus(dynamic status) {
+  static IncidentStatus _parseStatus(dynamic status) {
     if (status is String) {
-      switch (status) {
-        case 'newReport':
-          return ReportStatus.newReport;
-        case 'underReview':
-          return ReportStatus.underReview;
+      switch (status.toLowerCase()) {
+        case 'newreport':
+        case 'new':
+          return IncidentStatus.newReport;
+        case 'underreview':
+        case 'under_review':
+          return IncidentStatus.underReview;
         case 'resolved':
-          return ReportStatus.resolved;
-        case 'rejected':
-          return ReportStatus.rejected;
+          return IncidentStatus.resolved;
+        case 'dismissed':
+          return IncidentStatus.dismissed;
         default:
-          return ReportStatus.newReport;
+          return IncidentStatus.newReport;
       }
     }
-    return ReportStatus.newReport;
+    return IncidentStatus.newReport;
   }
 
-  // Copy with method
+  /// Copy with method
   IncidentReport copyWith({
     String? id,
-    String? title,
-    String? description,
     String? reporterId,
     String? reporterName,
+    String? title,
+    String? description,
     IncidentType? type,
-    ReportStatus? status,
+    IncidentStatus? status,
     String? location,
+    String? proofUrl,
     String? proofRef,
     DateTime? reportedAt,
     DateTime? resolvedAt,
@@ -189,13 +237,14 @@ class IncidentReport {
   }) {
     return IncidentReport(
       id: id ?? this.id,
-      title: title ?? this.title,
-      description: description ?? this.description,
       reporterId: reporterId ?? this.reporterId,
       reporterName: reporterName ?? this.reporterName,
+      title: title ?? this.title,
+      description: description ?? this.description,
       type: type ?? this.type,
       status: status ?? this.status,
       location: location ?? this.location,
+      proofUrl: proofUrl ?? this.proofUrl,
       proofRef: proofRef ?? this.proofRef,
       reportedAt: reportedAt ?? this.reportedAt,
       resolvedAt: resolvedAt ?? this.resolvedAt,
