@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../data/models/incident_report.dart';
-import '../../../data/repositories/incident_repository.dart';
-import 'create_incident_report_screen.dart';
+import '../../../../data/models/incident_report.dart';
+import '../../../../data/repositories/incident_repository.dart';
+import 'user_create_incident_report_screen.dart';
 
 class MyIncidentReportScreen extends StatelessWidget {
   const MyIncidentReportScreen({Key? key}) : super(key: key);

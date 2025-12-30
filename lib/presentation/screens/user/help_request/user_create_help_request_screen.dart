@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../data/models/help_request.dart';
-import '../../../data/repositories/request_repository.dart';
+import '../../../../data/models/help_request.dart';
+import '../../../../data/repositories/request_repository.dart';
 
 class CreateHelpRequestScreen extends StatefulWidget {
   const CreateHelpRequestScreen({Key? key}) : super(key: key);

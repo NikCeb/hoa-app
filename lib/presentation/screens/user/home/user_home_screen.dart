@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../data/models/help_request.dart';
-import 'request_detail_screen.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../data/models/help_request.dart';
+import '../help_request/user_help_request_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -13,7 +13,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedTabIndex = 0;
-  final List<String> _tabs = ['Requests', 'Marketplace', 'Announcements'];
+  final List<String> _tabs = ['Requests', 'Market', 'Announcements'];
 
   @override
   Widget build(BuildContext context) {
@@ -222,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => RequestDetailScreen(request: request),
+              builder: (context) => HelpRequestDetailScreen(request: request),
             ),
           );
         },
@@ -341,7 +341,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
-                              RequestDetailScreen(request: request),
+                              HelpRequestDetailScreen(request: request),
                         ),
                       );
                     },

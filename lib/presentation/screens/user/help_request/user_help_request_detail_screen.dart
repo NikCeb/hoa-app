@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hoa_application/core/utils/message_alert.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../../data/models/help_request.dart';
-import '../../../../data/models/offer.dart';
-import '../../../../data/repositories/request_repository.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../../data/models/help_request.dart';
+import '../../../../../data/models/offer.dart';
+import '../../../../../data/repositories/request_repository.dart';
 import 'user_edit_help_request_screen.dart';
 
 /// Request Detail Screen - Shows detailed view of a single request
@@ -25,19 +25,20 @@ import 'user_edit_help_request_screen.dart';
 /// StreamBuilder monitors offers
 ///   ↓
 /// Tab shows updated offer count
-class RequestDetailScreen extends StatefulWidget {
+class HelpRequestDetailScreen extends StatefulWidget {
   final HelpRequest request;
 
-  const RequestDetailScreen({
+  const HelpRequestDetailScreen({
     super.key,
     required this.request,
   });
 
   @override
-  State<RequestDetailScreen> createState() => _RequestDetailScreenState();
+  State<HelpRequestDetailScreen> createState() =>
+      _HelpRequestDetailScreenState();
 }
 
-class _RequestDetailScreenState extends State<RequestDetailScreen>
+class _HelpRequestDetailScreenState extends State<HelpRequestDetailScreen>
     with SingleTickerProviderStateMixin {
   final RequestRepository _repository = RequestRepository();
   late TabController _tabController;

@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../data/models/incident_report.dart';
-import '../../../data/repositories/incident_repository.dart';
+import '../../../../data/models/incident_report.dart';
+import '../../../../data/repositories/incident_repository.dart';
 
 class CreateIncidentReportScreen extends StatefulWidget {
   const CreateIncidentReportScreen({Key? key}) : super(key: key);

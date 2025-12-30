@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../data/models/help_request.dart';
-import '../../../data/models/offer.dart';
-import '../../../data/repositories/request_repository.dart';
-import 'user_request_detail_screen.dart';
+import '../../../../data/models/help_request.dart';
+import '../../../../data/models/offer.dart';
+import '../../../../data/repositories/request_repository.dart';
+import 'user_help_request_detail_screen.dart';
 import 'user_create_help_request_screen.dart';
 
 /// My Requests Screen - Shows all requests posted by the current user
@@ -328,7 +328,7 @@ class _MyHelpRequestScreenState extends State<MyHelpRequestScreen>
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => RequestDetailScreen(request: request),
+              builder: (context) => HelpRequestDetailScreen(request: request),
             ),
           );
         },

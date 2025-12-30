@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hoa_application/core/utils/message_alert.dart';
-import '../../../../data/models/help_request.dart';
-import '../../../core/constants/app_colors.dart';
+import '../../../../../data/models/help_request.dart';
+import '../../../../core/constants/app_colors.dart';
 
 /// Edit Help Request Screen - Edit an existing help request
 ///

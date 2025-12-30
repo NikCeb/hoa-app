@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
-import 'home_screen.dart';
-import 'marketplace_screen.dart';
-import 'my_requests_screen.dart';
-import 'profile_screen.dart';
+import '../../../../core/constants/app_colors.dart';
+import 'user_home_screen.dart';
+import '../market/user_marketplace_screen.dart';
+import '../help_request/user_my_help_request_screen.dart';
+import '../profile_screen.dart';
+import '../payment/user_payment_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({Key? key}) : super(key: key);
@@ -17,8 +18,8 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const MarketplaceScreen(),
-    const MyRequestsScreen(),
+    const PaymentScreen(),
+    const MyHelpRequestScreen(),
     const ProfileScreen(),
   ];
 
@@ -50,7 +51,7 @@ class _MainNavigationState extends State<MainNavigation> {
           BottomNavigationBarItem(
             icon: Icon(Icons.shopping_bag_outlined),
             activeIcon: Icon(Icons.shopping_bag),
-            label: 'Marketplace',
+            label: 'Payments',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.assignment_outlined),
