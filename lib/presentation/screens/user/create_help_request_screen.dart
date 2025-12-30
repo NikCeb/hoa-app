@@ -3,14 +3,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../data/models/help_request.dart';
 import '../../../data/repositories/request_repository.dart';
 
-class CreateRequestScreen extends StatefulWidget {
-  const CreateRequestScreen({Key? key}) : super(key: key);
+class CreateHelpRequestScreen extends StatefulWidget {
+  const CreateHelpRequestScreen({Key? key}) : super(key: key);
 
   @override
-  State<CreateRequestScreen> createState() => _CreateRequestScreenState();
+  State<CreateHelpRequestScreen> createState() =>
+      _CreateHelpRequestScreenState();
 }
 
-class _CreateRequestScreenState extends State<CreateRequestScreen> {
+class _CreateHelpRequestScreenState extends State<CreateHelpRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();

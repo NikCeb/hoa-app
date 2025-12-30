@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../data/models/help_request.dart';
 import '../../../data/models/offer.dart';
 import '../../../data/repositories/request_repository.dart';
 import 'request_detail_screen.dart';
-import 'create_request_screen.dart';
+import 'create_help_request_screen.dart';
 
 /// My Requests Screen - Shows all requests posted by the current user
 ///
@@ -12,6 +13,7 @@ import 'create_request_screen.dart';
 /// - Tab view (Active vs Completed requests)
 /// - Request cards with status badges
 /// - Navigate to details on tap
+/// - Delete button for open requests
 ///
 /// Data Flow:
 /// Repository.getUserRequestsByStatus() → Stream
@@ -42,6 +44,58 @@ class _MyRequestsScreenState extends State<MyRequestsScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Delete a help request (only for open status)
+  Future<void> _deleteRequest(String requestId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Request'),
+        content: const Text(
+          'Are you sure you want to delete this request? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // Delete the request document
+        await FirebaseFirestore.instance
+            .collection('help_requests')
+            .doc(requestId)
+            .delete();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Request deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting request: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -135,7 +189,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen>
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const CreateRequestScreen(),
+              builder: (context) => const CreateHelpRequestScreen(),
             ),
           );
         },
@@ -256,9 +310,13 @@ class _MyRequestsScreenState extends State<MyRequestsScreen>
   /// Shows:
   /// - Title and category
   /// - Status badge
+  /// - Delete button (for open requests)
   /// - Offer count or accepted helper
   /// - Time posted
   Widget _buildRequestCard(HelpRequest request) {
+    // Only show delete button for open requests
+    final canDelete = request.isOpen;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
@@ -280,7 +338,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header row (Title + Status badge)
+              // Header row (Title + Delete + Status badge)
               Row(
                 children: [
                   Expanded(
@@ -293,6 +351,26 @@ class _MyRequestsScreenState extends State<MyRequestsScreen>
                     ),
                   ),
                   const SizedBox(width: 8),
+
+                  // DELETE BUTTON (only for open requests)
+                  if (canDelete) ...[
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                      onPressed: () => _deleteRequest(request.id),
+                      tooltip: 'Delete Request',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+
                   // Status badge
                   Container(
                     padding: const EdgeInsets.symmetric(
