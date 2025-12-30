@@ -10,6 +10,7 @@ import '../../../core/constants/app_colors.dart';
 /// - Pre-filled form with existing data
 /// - Update title, description, category, helpers needed
 /// - Save changes to Firestore
+/// - Returns true on success for parent screen to refresh
 class EditHelpRequestScreen extends StatefulWidget {
   final HelpRequest request;
 
@@ -27,12 +28,12 @@ class _EditHelpRequestScreenState extends State<EditHelpRequestScreen> {
 
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
-  late RequestCategory _selectedCategory; // Changed to enum type
+  late RequestCategory _selectedCategory;
   late int _helpersNeeded;
 
   bool _isLoading = false;
 
-  // Categories - using the enum values
+  // Categories - using the CORRECT enum values
   final List<Map<String, dynamic>> _categories = [
     {
       'value': RequestCategory.handyman,
@@ -42,8 +43,8 @@ class _EditHelpRequestScreenState extends State<EditHelpRequestScreen> {
     {'value': RequestCategory.petCare, 'label': 'Pet Care', 'icon': Icons.pets},
     {
       'value': RequestCategory.errand,
-      'label': 'Errands',
-      'icon': Icons.shopping_basket
+      'label': 'Errand',
+      'icon': Icons.shopping_bag
     },
     {
       'value': RequestCategory.emergency,
@@ -70,7 +71,7 @@ class _EditHelpRequestScreenState extends State<EditHelpRequestScreen> {
     _titleController = TextEditingController(text: widget.request.title);
     _descriptionController =
         TextEditingController(text: widget.request.description);
-    _selectedCategory = widget.request.category; // Now correctly using enum
+    _selectedCategory = widget.request.category;
     _helpersNeeded = widget.request.helpersNeeded;
   }
 
@@ -92,7 +93,6 @@ class _EditHelpRequestScreenState extends State<EditHelpRequestScreen> {
 
     try {
       // Update request in Firestore
-      // Convert enum to string using .name property
       await FirebaseFirestore.instance
           .collection('help_requests')
           .doc(widget.request.id)
@@ -105,8 +105,8 @@ class _EditHelpRequestScreenState extends State<EditHelpRequestScreen> {
       });
 
       if (mounted) {
-        // Go back to previous screen
-        Navigator.pop(context);
+        // Go back with success status (true)
+        Navigator.pop(context, true);
 
         // Show success message
         showMessage(context, 'Request updated successfully',
@@ -383,8 +383,9 @@ class _EditHelpRequestScreenState extends State<EditHelpRequestScreen> {
                       width: double.infinity,
                       height: 56,
                       child: OutlinedButton(
-                        onPressed:
-                            _isLoading ? null : () => Navigator.pop(context),
+                        onPressed: _isLoading
+                            ? null
+                            : () => Navigator.pop(context, false),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF2563EB),
                           side: const BorderSide(
