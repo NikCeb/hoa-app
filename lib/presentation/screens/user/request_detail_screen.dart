@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:hoa_application/core/utils/message_alert.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../../data/models/help_request.dart';
 import '../../../../data/models/offer.dart';
 import '../../../../data/repositories/request_repository.dart';
@@ -38,7 +39,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
   late TabController _tabController;
 
   final _auth = FirebaseAuth.instance;
-  int _pendingOffersCount = 0;
 
   bool get _isMyRequest {
     return widget.request.requesterId == _auth.currentUser?.uid;
@@ -673,22 +673,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
         );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Offer submitted successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          _showError('Offer submitted successfully!', Colors.green);
         }
       } catch (e) {
         if (mounted) {
-          Fluttertoast.showToast(
-            msg: 'You have already offered to help for this request.',
-            toastLength: Toast.LENGTH_LONG,
-            gravity: ToastGravity.BOTTOM,
-            backgroundColor: Colors.red,
-            textColor: Colors.white,
-          );
+          _showError('You have already offered to help for this request.',
+              Colors.orange);
         }
       }
     }
@@ -728,21 +718,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Accepted ${offer.helperName}\'s offer!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showError('Accepted ${offer.helperName}\'s offer!', Colors.green);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showError('Try again later.', Colors.red);
       }
     }
   }
@@ -752,20 +732,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
       await _repository.rejectOffer(offer.id);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Rejected ${offer.helperName}\'s offer'),
-          ),
-        );
+        _showError('Rejected ${offer.helperName}\'s offer', Colors.red);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showError('Try again later.', Colors.red);
       }
     }
   }
@@ -796,22 +767,16 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
 
       if (mounted) {
         Navigator.pop(context); // Go back to list
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Request marked as completed!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showError('Request marked as completed!', Colors.green);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showError('Try again later.', Colors.red);
       }
     }
+  }
+
+  void _showError(String message, Color? color) {
+    showMessage(context, message, bgColor: color ?? AppColors.grey);
   }
 }

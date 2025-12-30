@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/models/user_model.dart';
+import '../user/my_incident_reports_screen.dart';
+import 'payment_history_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -43,6 +45,8 @@ class ProfileScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _buildPaymentCard(context),
+                      const SizedBox(height: 24),
                       _buildLocationCard(user),
                       const SizedBox(height: 24),
                       _buildActivitySection(),
@@ -145,7 +149,7 @@ class ProfileScreen extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     '12',
                     style: TextStyle(
                       fontSize: 32,
@@ -301,7 +305,7 @@ class ProfileScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Badges Earned',
           style: TextStyle(
             fontSize: 18,
@@ -351,9 +355,100 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildPaymentCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF059669),
+            const Color(0xFF10B981),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF059669).withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PaymentHistoryScreen(),
+            ),
+          );
+        },
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.payment,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Payment History',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'View and submit HOA payments',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMenuItems(BuildContext context, AuthRepository authRepo) {
     return Column(
       children: [
+        // Report Incident Button
+        _buildMenuItem(
+          icon: Icons.report_problem,
+          title: 'Report Incident',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MyIncidentReportsScreen(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
         _buildMenuItem(
           icon: Icons.settings,
           title: 'Settings',
