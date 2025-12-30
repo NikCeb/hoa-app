@@ -3,8 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../data/models/help_request.dart';
 import '../../../data/models/offer.dart';
 import '../../../data/repositories/request_repository.dart';
-import 'request_detail_screen.dart';
-import 'create_help_request_screen.dart';
+import 'user_request_detail_screen.dart';
+import 'user_create_help_request_screen.dart';
 
 /// My Requests Screen - Shows all requests posted by the current user
 ///
@@ -21,14 +21,14 @@ import 'create_help_request_screen.dart';
 /// StreamBuilder rebuilds when data changes
 ///   ↓
 /// UI displays updated list
-class MyRequestsScreen extends StatefulWidget {
-  const MyRequestsScreen({super.key});
+class MyHelpRequestScreen extends StatefulWidget {
+  const MyHelpRequestScreen({super.key});
 
   @override
-  State<MyRequestsScreen> createState() => _MyRequestsScreenState();
+  State<MyHelpRequestScreen> createState() => _MyHelpRequestScreenState();
 }
 
-class _MyRequestsScreenState extends State<MyRequestsScreen>
+class _MyHelpRequestScreenState extends State<MyHelpRequestScreen>
     with SingleTickerProviderStateMixin {
   final RequestRepository _repository = RequestRepository();
   late TabController _tabController;

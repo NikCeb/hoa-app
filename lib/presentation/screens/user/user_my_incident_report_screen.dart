@@ -3,8 +3,8 @@ import '../../../data/models/incident_report.dart';
 import '../../../data/repositories/incident_repository.dart';
 import 'create_incident_report_screen.dart';
 
-class MyIncidentReportsScreen extends StatelessWidget {
-  const MyIncidentReportsScreen({Key? key}) : super(key: key);
+class MyIncidentReportScreen extends StatelessWidget {
+  const MyIncidentReportScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

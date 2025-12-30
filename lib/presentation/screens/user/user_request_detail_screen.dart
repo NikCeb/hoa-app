@@ -6,7 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../../data/models/help_request.dart';
 import '../../../../data/models/offer.dart';
 import '../../../../data/repositories/request_repository.dart';
-import 'edit_help_request_screen.dart';
+import 'user_edit_help_request_screen.dart';
 
 /// Request Detail Screen - Shows detailed view of a single request
 ///
