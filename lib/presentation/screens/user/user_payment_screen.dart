@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
-import 'submit_payment_screen.dart';
+import 'user_submit_payment_screen.dart';
 
-class PaymentHistoryScreen extends StatelessWidget {
-  const PaymentHistoryScreen({Key? key}) : super(key: key);
+class PaymentScreen extends StatelessWidget {
+  const PaymentScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
