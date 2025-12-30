@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../../data/models/help_request.dart';
 import '../../../../data/models/offer.dart';
 import '../../../../data/repositories/request_repository.dart';
+import 'edit_help_request_screen.dart';
 
 /// Request Detail Screen - Shows detailed view of a single request
 ///
@@ -13,6 +14,9 @@ import '../../../../data/repositories/request_repository.dart';
 /// - 3 tabs: Details, Offers (with count), Chat
 /// - Accept/reject offer buttons
 /// - Mark as complete button
+/// - Delete button (for own open requests)
+/// - Edit button (for own open requests)
+/// - Auto-refresh after edit
 /// - Real-time offer updates
 ///
 /// Data Flow:
@@ -40,20 +44,104 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
 
   final _auth = FirebaseAuth.instance;
 
+  // Current request data (updates after edit)
+  late HelpRequest _currentRequest;
+
   bool get _isMyRequest {
-    return widget.request.requesterId == _auth.currentUser?.uid;
+    return _currentRequest.requesterId == _auth.currentUser?.uid;
   }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _currentRequest = widget.request; // Initialize with passed request
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Refresh request data from Firestore
+  Future<void> _refreshRequest() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('help_requests')
+          .doc(_currentRequest.id)
+          .get();
+
+      if (doc.exists && mounted) {
+        setState(() {
+          _currentRequest = HelpRequest.fromFirestore(doc);
+        });
+      }
+    } catch (e) {
+      // Silently fail - not critical
+      debugPrint('Error refreshing request: $e');
+    }
+  }
+
+  /// Delete the current request (only for open status)
+  Future<void> _deleteRequest() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Request'),
+        content: const Text(
+          'Are you sure you want to delete this request? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // Delete the request document
+        await FirebaseFirestore.instance
+            .collection('help_requests')
+            .doc(_currentRequest.id)
+            .delete();
+
+        if (mounted) {
+          // Go back to previous screen
+          Navigator.pop(context);
+
+          // Show success message
+          _showError('Request deleted successfully', Colors.green);
+        }
+      } catch (e) {
+        if (mounted) {
+          _showError('Error deleting request: $e', Colors.red);
+        }
+      }
+    }
+  }
+
+  /// Navigate to edit screen and refresh on success
+  Future<void> _editRequest() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditHelpRequestScreen(request: _currentRequest),
+      ),
+    );
+
+    // If edit was successful, refresh the request data
+    if (result == true && mounted) {
+      await _refreshRequest();
+    }
   }
 
   @override
@@ -75,7 +163,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
           Container(
             color: Colors.white,
             child: StreamBuilder<List<Offer>>(
-              stream: _repository.getRequestOffers(widget.request.id),
+              stream: _repository.getRequestOffers(_currentRequest.id),
               builder: (context, snapshot) {
                 final offers = snapshot.data ?? [];
                 final offerCount = offers.length;
@@ -111,7 +199,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
 
       // Bottom action button
       bottomNavigationBar:
-          widget.request.isInProgress ? _buildCompleteButton() : null,
+          _currentRequest.isInProgress ? _buildCompleteButton() : null,
     );
   }
 
@@ -120,15 +208,15 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      color:
-          Color(int.parse(widget.request.statusColor.replaceFirst('#', '0xFF')))
-              .withOpacity(0.1),
+      color: Color(
+              int.parse(_currentRequest.statusColor.replaceFirst('#', '0xFF')))
+          .withOpacity(0.1),
       child: Center(
         child: Text(
-          widget.request.statusText,
+          _currentRequest.statusText,
           style: TextStyle(
             color: Color(int.parse(
-                widget.request.statusColor.replaceFirst('#', '0xFF'))),
+                _currentRequest.statusColor.replaceFirst('#', '0xFF'))),
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -149,7 +237,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
             children: [
               Expanded(
                 child: Text(
-                  widget.request.title,
+                  _currentRequest.title,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -166,7 +254,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  widget.request.categoryText,
+                  _currentRequest.categoryText,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -184,7 +272,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
               CircleAvatar(
                 backgroundColor: const Color(0xFF2563EB),
                 child: Text(
-                  widget.request.requesterName[0].toUpperCase(),
+                  _currentRequest.requesterName[0].toUpperCase(),
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
@@ -193,14 +281,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.request.requesterName,
+                    _currentRequest.requesterName,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
                     ),
                   ),
                   Text(
-                    '${widget.request.tulongCount} Tulong',
+                    '${_currentRequest.tulongCount} Tulong',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -223,7 +311,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            widget.request.description,
+            _currentRequest.description,
             style: TextStyle(
               fontSize: 15,
               color: Colors.grey[700],
@@ -240,7 +328,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
                 child: _buildInfoCard(
                   icon: Icons.people_outline,
                   label: 'Helpers Needed',
-                  value: '${widget.request.helpersNeeded} person',
+                  value: '${_currentRequest.helpersNeeded} person',
                 ),
               ),
               const SizedBox(width: 12),
@@ -248,7 +336,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
                 child: _buildInfoCard(
                   icon: Icons.location_on_outlined,
                   label: 'Distance',
-                  value: widget.request.distanceText,
+                  value: _currentRequest.distanceText,
                 ),
               ),
             ],
@@ -259,7 +347,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
           _buildInfoCard(
             icon: Icons.access_time,
             label: 'Posted',
-            value: widget.request.timeAgo,
+            value: _currentRequest.timeAgo,
           ),
 
           const SizedBox(height: 32),
@@ -267,7 +355,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
           // ============================================
           // OFFER TO HELP BUTTON (only if not your request)
           // ============================================
-          if (!_isMyRequest && widget.request.isOpen)
+          if (!_isMyRequest && _currentRequest.isOpen)
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -292,8 +380,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
               ),
             ),
 
-          // Show message if it's your own request
-          if (_isMyRequest)
+          // ============================================
+          // YOUR REQUEST SECTION (with Edit & Delete buttons)
+          // ============================================
+          if (_isMyRequest) ...[
+            // Info box
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -318,6 +409,69 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
                 ],
               ),
             ),
+
+            // EDIT & DELETE BUTTONS (only for open requests)
+            if (_currentRequest.isOpen) ...[
+              const SizedBox(height: 16),
+
+              // Edit & Delete buttons side by side
+              Row(
+                children: [
+                  // EDIT BUTTON
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: _editRequest,
+                        icon: const Icon(Icons.edit, size: 20),
+                        label: const Text(
+                          'Edit',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // DELETE BUTTON
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: _deleteRequest,
+                        icon: const Icon(Icons.delete, size: 20),
+                        label: const Text(
+                          'Delete',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -367,7 +521,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
   /// OFFERS TAB - Shows list of people who offered to help
   Widget _buildOffersTab() {
     return StreamBuilder<List<Offer>>(
-      stream: _repository.getRequestOffers(widget.request.id),
+      stream: _repository.getRequestOffers(_currentRequest.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -507,7 +661,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
             ],
 
             // Accept/Reject buttons (only if pending and request is still open)
-            if (offer.isPending && widget.request.isOpen) ...[
+            if (offer.isPending && _currentRequest.isOpen) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -610,7 +764,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Offering help for: ${widget.request.title}',
+              'Offering help for: ${_currentRequest.title}',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[700],
@@ -665,7 +819,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
 
         // Create offer
         await _repository.createOffer(
-          requestId: widget.request.id,
+          requestId: _currentRequest.id,
           helperName: userName,
           message: messageController.text.trim().isEmpty
               ? null
@@ -713,7 +867,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
 
     try {
       await _repository.acceptOffer(
-        requestId: widget.request.id,
+        requestId: _currentRequest.id,
         offerId: offer.id,
       );
 
@@ -763,7 +917,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen>
     if (confirm != true) return;
 
     try {
-      await _repository.completeRequest(widget.request.id);
+      await _repository.completeRequest(_currentRequest.id);
 
       if (mounted) {
         Navigator.pop(context); // Go back to list
