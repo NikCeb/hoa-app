@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../../data/repositories/financial_repository.dart';
+import '../heat_map/admin_full_heatmap_screen.dart';
+import 'admin_fee_definition_screen.dart';
+import 'admin_bill_generation_screen.dart';
 
 class AdminFinancialOverviewScreen extends StatefulWidget {
   const AdminFinancialOverviewScreen({Key? key}) : super(key: key);
@@ -11,6 +15,38 @@ class AdminFinancialOverviewScreen extends StatefulWidget {
 
 class _AdminFinancialOverviewScreenState
     extends State<AdminFinancialOverviewScreen> {
+  final FinancialRepository _repository = FinancialRepository();
+  bool _isLoading = true;
+  FinancialSummary? _summary;
+  Map<String, LotPaymentStatus> _lotStatuses = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final summary = await _repository.getFinancialSummary();
+      final lotStatuses = await _repository.getLotPaymentStatuses();
+
+      setState(() {
+        _summary = summary;
+        _lotStatuses = lotStatuses;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,77 +79,187 @@ class _AdminFinancialOverviewScreenState
           ],
         ),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          // TODO: Refresh data
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Financial Stats Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.account_balance_wallet,
-                      iconColor: const Color(0xFF059669),
-                      value: '₱ 250,000',
-                      label: 'Expected Collectibles',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.warning_amber,
-                      iconColor: const Color(0xFFDC2626),
-                      value: '₱ 27,500',
-                      label: 'Past Due Balance',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.pending_actions,
-                      iconColor: const Color(0xFFEAB308),
-                      value: '12',
-                      label: 'Verification Pending',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.trending_up,
-                      iconColor: const Color(0xFF2563EB),
-                      value: '89.0%',
-                      label: 'Mission Complete Score',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ACTION BUTTONS (Fee Definition & Bill Generation)
+                    _buildActionButtons(),
+                    const SizedBox(height: 16),
 
-              // Subdivision Financial Heatmap
-              _buildSectionHeader('Subdivision Financial Heatmap'),
-              const SizedBox(height: 12),
-              _buildLegend(),
-              const SizedBox(height: 12),
-              _buildHeatmap(),
-              const SizedBox(height: 24),
+                    // Financial Stats Cards
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            icon: Icons.account_balance_wallet,
+                            iconColor: const Color(0xFF059669),
+                            value: _summary?.formattedExpected ?? '₱0',
+                            label: 'Expected Collectibles',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            icon: Icons.warning_amber,
+                            iconColor: const Color(0xFFDC2626),
+                            value: _summary?.formattedOverdue ?? '₱0',
+                            label: 'Past Due Balance',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            icon: Icons.pending_actions,
+                            iconColor: const Color(0xFFEAB308),
+                            value: _summary?.pendingCount.toString() ?? '0',
+                            label: 'Verification Pending',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            icon: Icons.trending_up,
+                            iconColor: const Color(0xFF2563EB),
+                            value: _summary?.formattedCompletionRate ?? '0%',
+                            label: 'Mission Complete Score',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
 
-              // Top 10 Delinquent Units
-              _buildSectionHeader('Top 10 Delinquent Units'),
-              const SizedBox(height: 12),
-              _buildDelinquentTable(),
-            ],
+                    // Subdivision Financial Heatmap
+                    _buildSectionHeader('Subdivision Financial Heatmap'),
+                    const SizedBox(height: 12),
+                    _buildLegend(),
+                    const SizedBox(height: 12),
+                    _buildHeatmap(),
+                    const SizedBox(height: 16),
+
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const AdminFullHeatmapScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.fullscreen, size: 20),
+                        label: const Text(
+                          'View Full Heatmap',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2563EB),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          side: const BorderSide(
+                            color: Color(0xFF2563EB),
+                            width: 2,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Top 10 Delinquent Units
+                    _buildSectionHeader('Top 10 Delinquent Units'),
+                    const SizedBox(height: 12),
+                    _buildDelinquentTable(),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  // ============================================
+  // ACTION BUTTONS (NEW!)
+  // ============================================
+  Widget _buildActionButtons() {
+    return Row(
+      children: [
+        // Fee Definition Button
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminFeeDefinitionScreen(),
+                ),
+              );
+              // Refresh data when returning
+              _loadData();
+            },
+            icon: const Icon(Icons.settings, size: 20),
+            label: const Text(
+              'Fee Definition',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
           ),
         ),
-      ),
+        const SizedBox(width: 12),
+
+        // Bill Generation Button
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminBillGenerationScreen(),
+                ),
+              );
+              // Refresh data when returning
+              _loadData();
+            },
+            icon: const Icon(Icons.receipt_long, size: 20),
+            label: const Text(
+              'Generate Bills',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -220,18 +366,18 @@ class _AdminFinancialOverviewScreenState
   }
 
   Widget _buildHeatmap() {
-    // Sample data - in real app, fetch from Firestore
+    // Get real lot data from _lotStatuses
     final lots = [
-      {'lot': 'Lot 1-A', 'resident': 'Juan Dela Cruz', 'status': 'paid'},
-      {'lot': 'Lot 1-B', 'resident': 'Maria Santos', 'status': 'paid'},
-      {'lot': 'Lot 2-A', 'resident': 'Pedro Reyes', 'status': 'partDue'},
-      {'lot': 'Lot 2-B', 'resident': 'Rosa Mendoza', 'status': 'paid'},
-      {'lot': 'Lot 3-A', 'resident': 'Luis Garcia', 'status': 'delinquent'},
-      {'lot': 'Lot 3-B', 'resident': 'Anna Cruz', 'status': 'partDue'},
-      {'lot': 'Lot 4-A', 'resident': 'Roberto Tan', 'status': 'paid'},
-      {'lot': 'Lot 4-B', 'resident': 'Carmen Flores', 'status': 'delinquent'},
-      {'lot': 'Lot 5-A', 'resident': 'Miguel Santos', 'status': 'paid'},
-      {'lot': 'Lot 5-B', 'resident': 'Lola Carmen', 'status': 'partDue'},
+      {'lot': 'Lot 1-A', 'resident': 'Juan Dela Cruz'},
+      {'lot': 'Lot 1-B', 'resident': 'Maria Santos'},
+      {'lot': 'Lot 2-A', 'resident': 'Pedro Reyes'},
+      {'lot': 'Lot 2-B', 'resident': 'Rosa Mendoza'},
+      {'lot': 'Lot 3-A', 'resident': 'Luis Garcia'},
+      {'lot': 'Lot 3-B', 'resident': 'Anna Cruz'},
+      {'lot': 'Lot 4-A', 'resident': 'Roberto Tan'},
+      {'lot': 'Lot 4-B', 'resident': 'Carmen Flores'},
+      {'lot': 'Lot 5-A', 'resident': 'Miguel Santos'},
+      {'lot': 'Lot 5-B', 'resident': 'Lola Carmen'},
     ];
 
     return Container(
@@ -252,26 +398,29 @@ class _AdminFinancialOverviewScreenState
         itemCount: lots.length,
         itemBuilder: (context, index) {
           final lot = lots[index];
-          return _buildLotCard(lot);
+          final lotNumber = lot['lot'] as String;
+          final status = _lotStatuses[lotNumber] ?? LotPaymentStatus.available;
+          return _buildLotCard(lot, status);
         },
       ),
     );
   }
 
-  Widget _buildLotCard(Map<String, dynamic> lot) {
+  Widget _buildLotCard(Map<String, dynamic> lot, LotPaymentStatus status) {
     Color bgColor;
-    switch (lot['status']) {
-      case 'paid':
+    switch (status) {
+      case LotPaymentStatus.paid:
         bgColor = Colors.green;
         break;
-      case 'partDue':
+      case LotPaymentStatus.partDue:
         bgColor = Colors.orange;
         break;
-      case 'delinquent':
+      case LotPaymentStatus.delinquent:
         bgColor = Colors.red;
         break;
-      default:
+      case LotPaymentStatus.available:
         bgColor = Colors.grey[300]!;
+        break;
     }
 
     return Container(
@@ -294,7 +443,7 @@ class _AdminFinancialOverviewScreenState
           ),
           const SizedBox(height: 2),
           Text(
-            lot['resident'],
+            lot['resident'] ?? '',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 10,
@@ -307,7 +456,7 @@ class _AdminFinancialOverviewScreenState
   }
 
   Widget _buildDelinquentTable() {
-    // Sample delinquent data
+    // Sample delinquent data - in production, query from payments collection
     final delinquents = [
       {
         'lot': 'Lot 4-B',
@@ -426,7 +575,6 @@ class _AdminFinancialOverviewScreenState
               IconButton(
                 icon: const Icon(Icons.email_outlined, size: 20),
                 onPressed: () {
-                  // TODO: Send reminder
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Reminder sent to $residentName'),
