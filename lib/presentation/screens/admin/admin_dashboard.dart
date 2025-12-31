@@ -1,27 +1,31 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../data/repositories/auth_repository.dart';
-import 'admin_financial_overview_screen.dart';
-import 'admin_verification_queue_screen.dart';
+import 'financial/admin_financial_overview_screen.dart';
+import 'verification/admin_verification_queue_screen.dart';
 import 'admin_governance_screen.dart';
-import 'admin_help_requests_screen.dart';
-import 'admin_incident_reports_screen.dart';
+import 'help_request/admin_help_requests_screen.dart';
+import 'incident_report/admin_incident_reports_screen.dart';
+import 'financial/admin_payments_screen.dart';
+import 'admin_profile_screen.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: CustomScrollView(
         slivers: [
-          // App Bar with Gradient
           SliverAppBar(
             expandedHeight: 160,
             floating: false,
             pinned: true,
-            backgroundColor: const Color(0xFF1E3A8A), // Dark blue
+            backgroundColor: const Color(0xFF1E3A8A),
             flexibleSpace: FlexibleSpaceBar(
               title: const Text(
                 'Admin Portal',
@@ -41,56 +45,28 @@ class AdminDashboard extends StatelessWidget {
                     ],
                   ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 80, left: 20, right: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'HOA Connect',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Administrative Dashboard',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ),
           ),
-
-          // Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Quick Stats Section
                   _buildQuickStats(),
                   const SizedBox(height: 24),
-
-                  // Main Management Sections
-                  Text(
+                  _buildAdminProfileButton(context, userId),
+                  const SizedBox(height: 24),
+                  const Text(
                     'Management Sections',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Color(0xFF1F2937),
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Financial Overview
                   _buildSectionCard(
                     context,
                     icon: Icons.account_balance_wallet,
@@ -103,25 +79,20 @@ class AdminDashboard extends StatelessWidget {
                         const Color(0xFF10B981).withOpacity(0.05),
                       ],
                     ),
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
                               const AdminFinancialOverviewScreen(),
-                        ),
-                      );
-                    },
+                        )),
                   ),
                   const SizedBox(height: 12),
-
-                  // Verification Queue
                   _buildSectionCard(
                     context,
                     icon: Icons.verified_user,
                     iconColor: const Color(0xFF2563EB),
-                    title: 'Verification Queue',
-                    subtitle: 'Review user registrations',
+                    title: 'Verification & Master List',
+                    subtitle: 'Approve users and manage residents',
                     badge: '3',
                     gradient: LinearGradient(
                       colors: [
@@ -129,54 +100,61 @@ class AdminDashboard extends StatelessWidget {
                         const Color(0xFF3B82F6).withOpacity(0.05),
                       ],
                     ),
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
                               const AdminVerificationQueueScreen(),
-                        ),
-                      );
-                    },
+                        )),
                   ),
                   const SizedBox(height: 12),
-
-                  // Governance & Reports
+                  _buildSectionCard(
+                    context,
+                    icon: Icons.payment,
+                    iconColor: const Color(0xFF059669),
+                    title: 'Payment Verification',
+                    subtitle: 'Review and approve payment submissions',
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF059669).withOpacity(0.1),
+                        const Color(0xFF10B981).withOpacity(0.05),
+                      ],
+                    ),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AdminPaymentsScreen(),
+                        )),
+                  ),
+                  const SizedBox(height: 12),
                   _buildSectionCard(
                     context,
                     icon: Icons.gavel,
                     iconColor: const Color(0xFF7C3AED),
                     title: 'Governance & Reports',
-                    subtitle: 'User reports and elections',
+                    subtitle: 'Announcements, reports, and elections',
                     gradient: LinearGradient(
                       colors: [
                         const Color(0xFF7C3AED).withOpacity(0.1),
                         const Color(0xFF8B5CF6).withOpacity(0.05),
                       ],
                     ),
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const AdminGovernanceScreen(),
-                        ),
-                      );
-                    },
+                        )),
                   ),
                   const SizedBox(height: 24),
-
-                  // Community Management
-                  Text(
+                  const Text(
                     'Community Management',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Color(0xFF1F2937),
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Help Requests
                   _buildSectionCard(
                     context,
                     icon: Icons.help_outline,
@@ -189,18 +167,13 @@ class AdminDashboard extends StatelessWidget {
                         const Color(0xFFFBBF24).withOpacity(0.05),
                       ],
                     ),
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const AdminHelpRequestsScreen(),
-                        ),
-                      );
-                    },
+                        )),
                   ),
                   const SizedBox(height: 12),
-
-                  // Incident Reports
                   _buildSectionCard(
                     context,
                     icon: Icons.warning_amber,
@@ -213,22 +186,121 @@ class AdminDashboard extends StatelessWidget {
                         const Color(0xFFEF4444).withOpacity(0.05),
                       ],
                     ),
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
                               const AdminIncidentReportsScreen(),
-                        ),
-                      );
-                    },
+                        )),
                   ),
+                  const SizedBox(height: 32),
+                  _buildLogoutButton(context),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAdminProfileButton(BuildContext context, String? userId) {
+    if (userId == null) return const SizedBox.shrink();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final userData = snapshot.data?.data() as Map<String, dynamic>?;
+        final name = userData?['name'] ?? 'Admin';
+        final email = userData?['email'] ?? '';
+
+        return InkWell(
+          onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AdminProfileScreen(),
+              )),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [const Color(0xFF1E3A8A), const Color(0xFF2563EB)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2563EB).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white.withOpacity(0.2),
+                  child: Text(
+                    name[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        email,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Administrator',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios,
+                    color: Colors.white.withOpacity(0.7), size: 20),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -257,36 +329,25 @@ class AdminDashboard extends StatelessWidget {
                   color: const Color(0xFF2563EB).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
-                  Icons.dashboard,
-                  color: Color(0xFF2563EB),
-                  size: 20,
-                ),
+                child: const Icon(Icons.analytics,
+                    color: Color(0xFF2563EB), size: 20),
               ),
               const SizedBox(width: 12),
               const Text(
                 'Quick Overview',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              Expanded(
-                child: _buildStatItem('12', 'Pending', Colors.orange),
-              ),
-              Container(width: 1, height: 40, color: Colors.grey[200]),
-              Expanded(
-                child: _buildStatItem('5', 'Reports', Colors.red),
-              ),
-              Container(width: 1, height: 40, color: Colors.grey[200]),
-              Expanded(
-                child: _buildStatItem('89%', 'Paid', Colors.green),
-              ),
+              _buildStatItem('Pending', '12', Colors.orange),
+              Container(width: 1, height: 40, color: Colors.grey[300]),
+              _buildStatItem('Reports', '5', Colors.red),
+              Container(width: 1, height: 40, color: Colors.grey[300]),
+              _buildStatItem('Paid', '89%', Colors.green),
             ],
           ),
         ],
@@ -294,25 +355,14 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(String value, String label, Color color) {
+  Widget _buildStatItem(String label, String value, Color color) {
     return Column(
       children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
+        Text(value,
+            style: TextStyle(
+                fontSize: 24, fontWeight: FontWeight.bold, color: color)),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }
@@ -323,40 +373,32 @@ class AdminDashboard extends StatelessWidget {
     required Color iconColor,
     required String title,
     required String subtitle,
+    String? badge,
     required Gradient gradient,
     required VoidCallback onTap,
-    String? badge,
   }) {
     return Container(
       decoration: BoxDecoration(
         gradient: gradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: iconColor.withOpacity(0.2),
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: iconColor.withOpacity(0.2), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 Container(
-                  width: 56,
-                  height: 56,
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.15),
+                    color: iconColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    icon,
-                    color: iconColor,
-                    size: 28,
-                  ),
+                  child: Icon(icon, color: iconColor, size: 28),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -369,17 +411,13 @@ class AdminDashboard extends StatelessWidget {
                             child: Text(
                               title,
                               style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                                  fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           ),
                           if (badge != null)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: Colors.red,
                                 borderRadius: BorderRadius.circular(12),
@@ -396,25 +434,66 @@ class AdminDashboard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
-                      ),
+                      Text(subtitle,
+                          style:
+                              TextStyle(fontSize: 13, color: Colors.grey[600])),
                     ],
                   ),
                 ),
                 const SizedBox(width: 12),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Colors.grey[400],
-                ),
+                Icon(Icons.arrow_forward_ios,
+                    size: 16, color: Colors.grey[400]),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton.icon(
+        onPressed: () async {
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Logout'),
+              content: const Text('Are you sure you want to logout?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Logout'),
+                ),
+              ],
+            ),
+          );
+
+          if (confirm == true && context.mounted) {
+            await AuthRepository().signOut();
+            if (context.mounted) {
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/login', (route) => false);
+            }
+          }
+        },
+        icon: const Icon(Icons.logout),
+        label: const Text(
+          'Logout',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red,
+          foregroundColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );
