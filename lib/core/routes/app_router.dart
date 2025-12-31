@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
 import '../../presentation/screens/admin/admin_dashboard.dart';
-import '../../presentation/screens/user/user_dashboard.dart';
+import '../../presentation/screens/user/user_home/user_dashboard.dart';
 
 class AppRouter {
   // Route Names
