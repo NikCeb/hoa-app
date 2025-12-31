@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../data/models/incident_report.dart';
-import '../../../data/repositories/incident_repository.dart';
+import '../../../../data/models/incident_report.dart';
+import '../../../../data/repositories/incident_repository.dart';
 
 class AdminIncidentReportsScreen extends StatefulWidget {
   const AdminIncidentReportsScreen({Key? key}) : super(key: key);
