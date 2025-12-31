@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../data/models/help_request.dart';
-import '../../../data/repositories/request_repository.dart';
-import '../user/help_request/user_help_request_detail_screen.dart';
+import '../../../../data/models/help_request.dart';
+import '../../../../data/repositories/request_repository.dart';
+import '../../user/help_request/user_help_request_detail_screen.dart';
 
 class AdminHelpRequestsScreen extends StatefulWidget {
   const AdminHelpRequestsScreen({Key? key}) : super(key: key);
