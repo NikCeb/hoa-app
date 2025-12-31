@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+// import 'package:firebase_storage/firebase_storage.dart';
+// import 'package:image_picker/image_picker.dart';
+// import 'dart:io';
 
 class SubmitPaymentScreen extends StatefulWidget {
   const SubmitPaymentScreen({Key? key}) : super(key: key);
@@ -21,7 +21,7 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
   String _selectedMonth = DateTime.now().month.toString();
   String _selectedYear = DateTime.now().year.toString();
   String _paymentMethod = 'gcash';
-  File? _proofImage;
+  // File? _proofImage;
   bool _isSubmitting = false;
 
   final List<String> _months = [
