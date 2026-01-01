@@ -1,173 +1,139 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_model.dart';
+import '../models/verification_request.dart';
+import '../repositories/master_resident_repository.dart';
+import '../repositories/user_repository.dart';
+import '../repositories/verification_request_repository.dart';
 
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final _userRepo = UserRepository();
+  final _masterResidentRepo = MasterResidentRepository();
+  final _verificationRepo = VerificationRequestRepository();
 
-  // Get current user
   User? get currentUser => _auth.currentUser;
-
-  // Auth state changes stream
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Sign in with email and password
-  Future<UserModel?> signInWithEmail(String email, String password) async {
-    try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      return await getUserData(userCredential.user!.uid);
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
-    }
+  Future<UserCredential> signInWithEmailAndPassword(
+    String email,
+    String password,
+  ) async {
+    return await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
   }
 
-  // Sign up with email and password
-  Future<UserModel?> signUpWithEmail({
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  Future<UserCredential> registerWithEmailAndPassword({
     required String email,
     required String password,
     required String firstName,
-    required String middleName,
+    String middleName = '',
     required String lastName,
-    required String suffix,
-    required String fullAddress,
+    String suffix = '',
     required String phase,
     required String block,
     required String lotNumber,
+    required String fullAddress,
   }) async {
-    try {
-      // Create user in Firebase Auth
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+    final userCredential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
 
-      // Create user document in Firestore
-      UserModel newUser = UserModel(
-        uid: userCredential.user!.uid,
+    final masterResident = await _masterResidentRepo.findAvailableMatch(
+      firstName: firstName,
+      lastName: lastName,
+      lotNumber: lotNumber,
+    );
+
+    final bool isAutoVerified = masterResident != null;
+    final String? lotId = masterResident?.id;
+
+    final newUser = UserModel(
+      uid: userCredential.user!.uid,
+      email: email,
+      firstName: firstName,
+      middleName: middleName,
+      lastName: lastName,
+      suffix: suffix,
+      fullAddress: fullAddress,
+      phase: phase,
+      block: block,
+      lotNumber: lotNumber,
+      lotId: lotId,
+      isVerified: isAutoVerified,
+      role: 'user',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await _userRepo.createUser(newUser);
+
+    if (isAutoVerified) {
+      await _masterResidentRepo.assignUser(lotId!, userCredential.user!.uid);
+    } else {
+      final verificationRequest = VerificationRequest(
+        id: '',
+        userId: userCredential.user!.uid,
+        userName: newUser.fullName,
         email: email,
-        firstName: firstName,
-        middleName: middleName,
-        lastName: lastName,
-        suffix: suffix,
-        fullAddress: fullAddress,
         phase: phase,
         block: block,
         lotNumber: lotNumber,
-        role: UserRole.user,
-        verificationStatus: VerificationStatus.pending,
+        fullAddress: fullAddress,
+        status: 'pending',
         createdAt: DateTime.now(),
       );
 
-      await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set(newUser.toMap());
-
-      return newUser;
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      await _verificationRepo.createRequest(verificationRequest);
     }
+
+    return userCredential;
   }
 
-  // Sign in with Google
-  Future<UserModel?> signInWithGoogle() async {
-    try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+  Future<void> updateVerificationStatus({
+    required String uid,
+    required bool isVerified,
+    String? lotId,
+  }) async {
+    final updates = <String, dynamic>{
+      'isVerified': isVerified,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
 
-      if (googleUser == null) return null;
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
-
-      // Check if user exists in Firestore
-      DocumentSnapshot userDoc = await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
-
-      if (!userDoc.exists) {
-        // New user - needs to complete registration
-        return null;
-      }
-
-      return await getUserData(userCredential.user!.uid);
-    } catch (e) {
-      throw Exception('Google sign in failed: $e');
+    if (lotId != null) {
+      updates['lotId'] = lotId;
     }
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .update(updates);
   }
 
-  // Get user data from Firestore
   Future<UserModel?> getUserData(String uid) async {
-    try {
-      DocumentSnapshot doc =
-          await _firestore.collection('users').doc(uid).get();
-
-      if (!doc.exists) return null;
-
-      return UserModel.fromFirestore(doc);
-    } catch (e) {
-      throw Exception('Failed to get user data: $e');
-    }
+    return await _userRepo.getUserById(uid);
   }
 
-  // Sign out
-  Future<void> signOut() async {
-    await Future.wait([
-      _auth.signOut(),
-      _googleSignIn.signOut(),
-    ]);
+  Future<UserModel?> getCurrentUserData() async {
+    if (currentUser == null) return null;
+    return await _userRepo.getUserById(currentUser!.uid);
   }
 
-  // Handle authentication exceptions
-  String _handleAuthException(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found':
-        return 'No user found with this email.';
-      case 'wrong-password':
-        return 'Wrong password provided.';
-      case 'email-already-in-use':
-        return 'An account already exists with this email.';
-      case 'invalid-email':
-        return 'Invalid email address.';
-      case 'weak-password':
-        return 'Password is too weak.';
-      case 'operation-not-allowed':
-        return 'Operation not allowed.';
-      default:
-        return 'An error occurred. Please try again.';
-    }
+  Stream<UserModel?> getUserStream(String uid) {
+    return _userRepo.getUserStream(uid);
   }
 
-  // Update user verification status (Admin only)
-  Future<void> updateVerificationStatus(
-    String uid,
-    VerificationStatus status,
-    int? lotId,
-  ) async {
-    try {
-      await _firestore.collection('users').doc(uid).update({
-        'verificationStatus': status.name,
-        'updatedAt': FieldValue.serverTimestamp(),
-        if (lotId != null) 'lotId': lotId,
-      });
-    } catch (e) {
-      throw Exception('Failed to update verification status: $e');
+  Stream<UserModel?> getCurrentUserStream() {
+    if (currentUser == null) {
+      return Stream.value(null);
     }
+    return _userRepo.getUserStream(currentUser!.uid);
   }
 }

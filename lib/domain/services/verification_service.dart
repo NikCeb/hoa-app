@@ -1,220 +1,125 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../data/models/master_resident.dart';
+import '../../data/models/verification_request.dart';
 import '../../data/models/user_model.dart';
+import '../../data/repositories/verification_request_repository.dart';
+import '../../data/repositories/user_repository.dart';
+import '../../data/repositories/master_resident_repository.dart';
 
 class VerificationService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _firestore = FirebaseFirestore.instance;
+  final _verificationRepo = VerificationRequestRepository();
+  final _userRepo = UserRepository();
+  final _masterResidentRepo = MasterResidentRepository();
 
-  // Verify user against master resident list
-  Future<VerificationResult> verifyUser(UserModel user) async {
+  Future<void> approveVerification({
+    required String requestId,
+    required String userId,
+    required String firstName,
+    required String lastName,
+    required String lotNumber,
+    String? adminNotes,
+  }) async {
+    final batch = _firestore.batch();
+
     try {
-      // Query master_residents collection for a match
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('master_residents')
-          .where('firstName', isEqualTo: user.firstName.toLowerCase().trim())
-          .where('lastName', isEqualTo: user.lastName.toLowerCase().trim())
-          .where('fullAddress',
-              isEqualTo: user.fullAddress.toLowerCase().trim())
-          .get();
+      final masterResident = await _masterResidentRepo.findAvailableMatch(
+        firstName: firstName,
+        lastName: lastName,
+        lotNumber: lotNumber,
+      );
 
-      if (querySnapshot.docs.isEmpty) {
-        // No match found - add to verification queue
-        await _addToVerificationQueue(user);
-        return VerificationResult(
-          isAutoApproved: false,
-          message: 'No exact match found. Added to manual verification queue.',
+      if (masterResident == null) {
+        throw Exception(
+          'No available master resident found. Please add to database first.',
         );
       }
 
-      // Match found - auto approve
-      MasterResident matchedResident =
-          MasterResident.fromFirestore(querySnapshot.docs.first);
-
-      // Check if lot is already assigned to another user
-      if (matchedResident.userId != null &&
-          matchedResident.userId != user.uid) {
-        await _addToVerificationQueue(user,
-            reason: 'Lot already assigned to another user');
-        return VerificationResult(
-          isAutoApproved: false,
-          message:
-              'This lot is already assigned. Added to manual verification queue.',
-        );
-      }
-
-      // Auto approve - link user to master resident
-      await _autoApproveUser(user, matchedResident);
-
-      return VerificationResult(
-        isAutoApproved: true,
-        message: 'Verification successful! You now have full access.',
-        lotId: matchedResident.lotId,
-      );
-    } catch (e) {
-      throw Exception('Verification failed: $e');
-    }
-  }
-
-  // Auto approve user and link to master resident
-  Future<void> _autoApproveUser(UserModel user, MasterResident resident) async {
-    WriteBatch batch = _firestore.batch();
-
-    // Update user verification status
-    batch.update(
-      _firestore.collection('users').doc(user.uid),
-      {
-        'verificationStatus': VerificationStatus.approved.name,
-        'lotId': resident.lotId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-    );
-
-    // Link user to master resident
-    batch.update(
-      _firestore.collection('master_residents').doc(resident.lotId.toString()),
-      {
-        'userId': user.uid,
-      },
-    );
-
-    await batch.commit();
-  }
-
-  // Add user to verification queue for manual review
-  Future<void> _addToVerificationQueue(UserModel user, {String? reason}) async {
-    await _firestore.collection('verification_queue').add({
-      'userId': user.uid,
-      'email': user.email,
-      'firstName': user.firstName,
-      'middleName': user.middleName,
-      'lastName': user.lastName,
-      'suffix': user.suffix,
-      'fullAddress': user.fullAddress,
-      'phase': user.phase,
-      'block': user.block,
-      'lotNumber': user.lotNumber,
-      'reason': reason ?? 'No exact match found',
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  // Get verification queue (Admin only)
-  Stream<List<Map<String, dynamic>>> getVerificationQueue() {
-    return _firestore
-        .collection('verification_queue')
-        .where('status', isEqualTo: 'pending')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
-        data['id'] = doc.id;
-        return data;
-      }).toList();
-    });
-  }
-
-  // Manually approve user (Admin only)
-  Future<void> manuallyApproveUser(
-    String queueDocId,
-    String userId,
-    int lotId,
-  ) async {
-    WriteBatch batch = _firestore.batch();
-
-    // Update user verification status
-    batch.update(
-      _firestore.collection('users').doc(userId),
-      {
-        'verificationStatus': VerificationStatus.approved.name,
-        'lotId': lotId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-    );
-
-    // Link user to master resident
-    batch.update(
-      _firestore.collection('master_residents').doc(lotId.toString()),
-      {
-        'userId': userId,
-      },
-    );
-
-    // Update queue status
-    batch.update(
-      _firestore.collection('verification_queue').doc(queueDocId),
-      {
-        'status': 'approved',
-        'processedAt': FieldValue.serverTimestamp(),
-      },
-    );
-
-    await batch.commit();
-  }
-
-  // Reject user verification (Admin only)
-  Future<void> rejectUser(String queueDocId, String userId) async {
-    WriteBatch batch = _firestore.batch();
-
-    // Update user verification status
-    batch.update(
-      _firestore.collection('users').doc(userId),
-      {
-        'verificationStatus': VerificationStatus.rejected.name,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-    );
-
-    // Update queue status
-    batch.update(
-      _firestore.collection('verification_queue').doc(queueDocId),
-      {
-        'status': 'rejected',
-        'processedAt': FieldValue.serverTimestamp(),
-      },
-    );
-
-    await batch.commit();
-  }
-
-  // Upload master residents from CSV (Admin only)
-  Future<void> uploadMasterResidents(List<MasterResident> residents) async {
-    WriteBatch batch = _firestore.batch();
-    int count = 0;
-
-    for (MasterResident resident in residents) {
-      batch.set(
-        _firestore
-            .collection('master_residents')
-            .doc(resident.lotId.toString()),
-        resident.toMap(),
+      batch.update(
+        _firestore.collection('users').doc(userId),
+        {
+          'isVerified': true,
+          'lotId': masterResident.id,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
       );
 
-      count++;
+      batch.update(
+        _firestore.collection('master_residents').doc(masterResident.id),
+        {
+          'userId': userId,
+          'isAvailable': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      );
 
-      // Firestore batch limit is 500 operations
-      if (count == 500) {
-        await batch.commit();
-        batch = _firestore.batch();
-        count = 0;
-      }
-    }
+      batch.update(
+        _firestore.collection('verification_requests').doc(requestId),
+        {
+          'status': 'approved',
+          'adminNotes': adminNotes,
+          'reviewedAt': FieldValue.serverTimestamp(),
+        },
+      );
 
-    if (count > 0) {
       await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to approve verification: $e');
     }
   }
-}
 
-class VerificationResult {
-  final bool isAutoApproved;
-  final String message;
-  final int? lotId;
+  Future<void> rejectVerification({
+    required String requestId,
+    required String userId,
+    String? adminNotes,
+  }) async {
+    final batch = _firestore.batch();
 
-  VerificationResult({
-    required this.isAutoApproved,
-    required this.message,
-    this.lotId,
-  });
+    try {
+      batch.update(
+        _firestore.collection('users').doc(userId),
+        {
+          'isVerified': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      );
+
+      batch.update(
+        _firestore.collection('verification_requests').doc(requestId),
+        {
+          'status': 'rejected',
+          'adminNotes': adminNotes ?? 'Verification rejected by admin',
+          'reviewedAt': FieldValue.serverTimestamp(),
+        },
+      );
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to reject verification: $e');
+    }
+  }
+
+  Future<void> deleteUserAndRequest({
+    required String requestId,
+    required String userId,
+  }) async {
+    final batch = _firestore.batch();
+
+    try {
+      batch.delete(_firestore.collection('users').doc(userId));
+      batch.delete(
+          _firestore.collection('verification_requests').doc(requestId));
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to delete user: $e');
+    }
+  }
+
+  Stream<List<VerificationRequest>> getPendingRequests() {
+    return _verificationRepo.getPendingRequests();
+  }
+
+  Stream<List<VerificationRequest>> getAllRequests() {
+    return _verificationRepo.getAllRequests();
+  }
 }

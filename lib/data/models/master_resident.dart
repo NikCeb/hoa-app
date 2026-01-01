@@ -1,8 +1,7 @@
-// lib/data/models/master_resident.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MasterResident {
+  final String id;
   final int lotId;
   final String phase;
   final String block;
@@ -15,60 +14,39 @@ class MasterResident {
   final String? userId;
   final bool isAvailable;
   final bool isRental;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   MasterResident({
+    required this.id,
     required this.lotId,
     required this.phase,
     required this.block,
     required this.lotNumber,
     required this.fullAddress,
     required this.firstName,
-    required this.middleName,
+    this.middleName = '',
     required this.lastName,
-    required this.suffix,
+    this.suffix = '',
     this.userId,
     required this.isAvailable,
-    required this.isRental,
+    this.isRental = false,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
-  // Factory constructor to create a MasterResident from Firestore document
-  factory MasterResident.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return MasterResident(
-      lotId: data['lotId'] ?? 0,
-      phase: data['phase'] ?? '',
-      block: data['block'] ?? '',
-      lotNumber: data['lotNumber'] ?? '',
-      fullAddress: data['fullAddress'] ?? '',
-      firstName: data['firstName'] ?? '',
-      middleName: data['middleName'] ?? '',
-      lastName: data['lastName'] ?? '',
-      suffix: data['suffix'] ?? '',
-      userId: data['userId'],
-      isAvailable: data['isAvailable'] ?? false,
-      isRental: data['isRental'] ?? false,
-    );
+  String get fullName {
+    String name = firstName;
+    if (middleName.isNotEmpty) name += ' $middleName';
+    name += ' $lastName';
+    if (suffix.isNotEmpty) name += ' $suffix';
+    return name;
   }
 
-  // Factory constructor to create a MasterResident from JSON/Map
-  factory MasterResident.fromMap(Map<String, dynamic> map) {
-    return MasterResident(
-      lotId: map['lotId'] ?? 0,
-      phase: map['phase'] ?? '',
-      block: map['block'] ?? '',
-      lotNumber: map['lotNumber'] ?? '',
-      fullAddress: map['fullAddress'] ?? '',
-      firstName: map['firstName'] ?? '',
-      middleName: map['middleName'] ?? '',
-      lastName: map['lastName'] ?? '',
-      suffix: map['suffix'] ?? '',
-      userId: map['userId'],
-      isAvailable: map['isAvailable'] ?? false,
-      isRental: map['isRental'] ?? false,
-    );
+  String get matchKey {
+    return '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$lotNumber';
   }
 
-  // Convert MasterResident to Map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'lotId': lotId,
@@ -83,29 +61,34 @@ class MasterResident {
       'userId': userId,
       'isAvailable': isAvailable,
       'isRental': isRental,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
 
-  // Get full name
-  String get fullName {
-    String name = '$firstName';
-    if (middleName.isNotEmpty) name += ' $middleName';
-    name += ' $lastName';
-    if (suffix.isNotEmpty) name += ' $suffix';
-    return name;
+  factory MasterResident.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return MasterResident(
+      id: doc.id,
+      lotId: data['lotId'] ?? 0,
+      phase: data['phase'] ?? '',
+      block: data['block'] ?? '',
+      lotNumber: data['lotNumber'] ?? '',
+      fullAddress: data['fullAddress'] ?? '',
+      firstName: data['firstName'] ?? '',
+      middleName: data['middleName'] ?? '',
+      lastName: data['lastName'] ?? '',
+      suffix: data['suffix'] ?? '',
+      userId: data['userId'],
+      isAvailable: data['isAvailable'] ?? true,
+      isRental: data['isRental'] ?? false,
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
   }
 
-  // Check if resident matches user input (for verification)
-  bool matches(
-      String inputFirstName, String inputLastName, String inputAddress) {
-    return firstName.toLowerCase().trim() ==
-            inputFirstName.toLowerCase().trim() &&
-        lastName.toLowerCase().trim() == inputLastName.toLowerCase().trim() &&
-        fullAddress.toLowerCase().trim() == inputAddress.toLowerCase().trim();
-  }
-
-  // Copy with method for updating fields
   MasterResident copyWith({
+    String? id,
     int? lotId,
     String? phase,
     String? block,
@@ -118,8 +101,11 @@ class MasterResident {
     String? userId,
     bool? isAvailable,
     bool? isRental,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return MasterResident(
+      id: id ?? this.id,
       lotId: lotId ?? this.lotId,
       phase: phase ?? this.phase,
       block: block ?? this.block,
@@ -132,6 +118,8 @@ class MasterResident {
       userId: userId ?? this.userId,
       isAvailable: isAvailable ?? this.isAvailable,
       isRental: isRental ?? this.isRental,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }
