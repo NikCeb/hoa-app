@@ -1,16 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:hoa_application/core/utils/message_alert.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_strings.dart';
-import '../../../data/repositories/auth_repository.dart';
-import '../../../data/models/user_model.dart';
-import '../../widgets/custom_button.dart';
-import '../../widgets/custom_text_field.dart';
-import '../../widgets/loading_indicator.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../data/repositories/user_repository.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -22,6 +15,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  final _userRepo = UserRepository();
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -29,233 +24,263 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
+  void _showError(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
+  }
+
+  Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final authRepo = context.read<AuthRepository>();
-      UserModel? user = await authRepo.signInWithEmail(
-        _emailController.text.trim(),
-        _passwordController.text,
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
       );
 
-      if (!mounted) return;
+      final user = await _userRepo.getUserById(credential.user!.uid);
 
       if (user == null) {
-        _showError('User not found', Colors.orange);
+        _showError('User data not found.', Colors.red);
+        await FirebaseAuth.instance.signOut();
         return;
       }
 
-      // Check verification status
-      if (user.verificationStatus == VerificationStatus.pending) {
+      if (!user.isVerified) {
         _showError(
-            'Your Account is still Pending Verification.', Colors.orange);
-        await authRepo.signOut();
+          'Your account is pending verification. Please wait for admin approval.',
+          Colors.orange,
+        );
+        await FirebaseAuth.instance.signOut();
         return;
       }
 
-      if (user.verificationStatus == VerificationStatus.rejected) {
-        _showError(
-            'Your account is frozen. Please contact the admin.', Colors.orange);
-        await authRepo.signOut();
-        return;
-      }
-
-      // Navigate based on role
-      if (user.isAdmin) {
-        Navigator.pushReplacementNamed(context, '/admin-dashboard');
-      } else {
-        Navigator.pushReplacementNamed(context, '/user-dashboard');
-      }
-    } catch (e) {
       if (mounted) {
-        _showError('Please try again.', Colors.orange);
+        if (user.isAdmin) {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
+    } on FirebaseAuthException catch (e) {
+      String message = 'Login failed';
+      if (e.code == 'user-not-found') {
+        message = 'No user found with this email';
+      } else if (e.code == 'wrong-password') {
+        message = 'Incorrect password';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address';
+      }
+      _showError(message, Colors.red);
+    } catch (e) {
+      _showError('Error: $e', Colors.red);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  Future<void> _handleGoogleSignIn() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final authRepo = context.read<AuthRepository>();
-      UserModel? user = await authRepo.signInWithGoogle();
-
-      if (!mounted) return;
-
-      if (user == null) {
-        // New user - redirect to registration
-        Navigator.pushNamed(context, '/register');
-        return;
-      }
-
-      // Check verification status
-      if (user.verificationStatus == VerificationStatus.pending) {
-        _showError(
-            'Your Account is still Pending Verification.', Colors.orange);
-        await authRepo.signOut();
-        return;
-      }
-
-      // Navigate based on role
-      if (user.isAdmin) {
-        Navigator.pushReplacementNamed(context, '/admin-dashboard');
-      } else {
-        Navigator.pushReplacementNamed(context, '/user-dashboard');
-      }
-    } catch (e) {
-      if (mounted) {
-        _showError('Error can\'t signing in with Google!', Colors.red);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _showError(String message, Color? color) {
-    showMessage(context, message, bgColor: color ?? Colors.red);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-                // Logo and Title
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: const BoxDecoration(
-                    color: AppColors.white,
-                    shape: BoxShape.circle,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Card(
+                  elevation: 8,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  child: const Icon(
-                    Icons.group,
-                    size: 40,
-                    color: AppColors.primaryBlue,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  AppStrings.appName,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  AppStrings.appTagline,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.white.withOpacity(0.9),
-                  ),
-                ),
-                const SizedBox(height: 40),
-
-                // Login Form Card
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        CustomTextField(
-                          controller: _emailController,
-                          label: AppStrings.emailLabel,
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return AppStrings.errorRequiredField;
-                            }
-                            if (!value.contains('@')) {
-                              return AppStrings.errorInvalidEmail;
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        CustomTextField(
-                          controller: _passwordController,
-                          label: AppStrings.passwordLabel,
-                          isPassword: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return AppStrings.errorRequiredField;
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        _isLoading
-                            ? const LoadingIndicator()
-                            : CustomButton(
-                                text: AppStrings.signIn,
-                                onPressed: _handleLogin,
-                              ),
-                        const SizedBox(height: 16),
-                        const Row(
-                          children: [
-                            Expanded(child: Divider(color: AppColors.grey)),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: Text(
-                                AppStrings.or,
-                                style:
-                                    TextStyle(color: AppColors.textSecondary),
-                              ),
+                  child: Container(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1976D2),
+                              shape: BoxShape.circle,
                             ),
-                            Expanded(child: Divider(color: AppColors.grey)),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        CustomButton(
-                          text: AppStrings.continueWithGoogle,
-                          onPressed: _isLoading ? null : _handleGoogleSignIn,
-                          isOutlined: true,
-                          icon: Icons.g_mobiledata,
-                        ),
-                        const SizedBox(height: 16),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pushNamed(context, '/register');
-                          },
-                          child: const Text(
-                            AppStrings.dontHaveAccount,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: AppColors.primaryBlue,
-                              fontWeight: FontWeight.w600,
+                            child: const Icon(
+                              Icons.groups,
+                              size: 40,
+                              color: Colors.white,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 24),
+                          const Text(
+                            'HOA Connect',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1976D2),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Secure your subdivision. Digitize your HOA\nfees. Connect your community.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: InputDecoration(
+                              hintText: 'Email',
+                              filled: true,
+                              fillColor: Colors.grey[100],
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 16,
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value?.isEmpty ?? true) return 'Required';
+                              if (!value!.contains('@')) return 'Invalid email';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            decoration: InputDecoration(
+                              hintText: 'Password',
+                              filled: true,
+                              fillColor: Colors.grey[100],
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 16,
+                              ),
+                            ),
+                            validator: (value) =>
+                                value?.isEmpty ?? true ? 'Required' : null,
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _login,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1976D2),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Sign In',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'or',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                // Google Sign In (implement later)
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Colors.grey[300]!),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              icon: Image.asset(
+                                'assets/google_icon.png',
+                                height: 20,
+                                width: 20,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.g_mobiledata,
+                                    size: 24,
+                                    color: Colors.grey,
+                                  );
+                                },
+                              ),
+                              label: const Text(
+                                'Continue with Google',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pushNamed(context, '/register'),
+                            child: const Text(
+                              "Don't have an account? Register",
+                              style: TextStyle(
+                                color: Color(0xFF1976D2),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
