@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Status enum - Updated to match new schema
 enum IncidentStatus {
-  newReport,
-  underReview,
-  resolved,
-  dismissed,
+  newReport, // Maps to "NEW"
+  underReview, // Maps to "IN_REVIEW"
+  resolved, // Maps to "RESOLVED"
+  dismissed, // Keep for existing functionality
 }
 
 /// Type/category of incident
@@ -21,25 +22,35 @@ enum IncidentType {
 
 /// Represents an incident report filed by a resident
 ///
-/// Data Flow:
-/// 1. User creates report → Firestore + Storage
-/// 2. Admin views → Updates status
-/// 3. Stream updates UI automatically
+/// SCHEMA COMPATIBLE: Matches new schema + keeps useful extra fields
+/// - KEPT: title (better UX!)
+/// - Removed: resolvedBy
+/// - Updated: status values to match new schema
 class IncidentReport {
-  final String id;
+  final String id; // reportId in new schema
   final String reporterId;
   final String reporterName;
+
+  // KEPT: Title field for better UX!
   final String title;
+
   final String description;
-  final IncidentType type;
+  final IncidentType type; // Keep enum for app logic
   final IncidentStatus status;
   final String location;
-  final String? proofUrl; // Photo from Firebase Storage
-  final String? proofRef; // Storage reference path
+
+  // PROOF HANDLING - Backward compatible
+  final String? proofRef; // Can be URL or storage path
+  final String? proofUrl; // Keep for backward compatibility
+
   final DateTime reportedAt;
   final DateTime? resolvedAt;
-  final String? adminNotes; // Admin can add notes
-  final String? resolvedBy; // Admin UID who resolved it
+  final String? adminNotes;
+
+  // REMOVED: resolvedBy field (not in new schema)
+
+  // OPTIONAL FIELDS - Keep for existing functionality
+  final String? phase; // User's phase
 
   IncidentReport({
     required this.id,
@@ -50,12 +61,12 @@ class IncidentReport {
     required this.type,
     required this.status,
     required this.location,
-    this.proofUrl,
     this.proofRef,
+    this.proofUrl,
     required this.reportedAt,
     this.resolvedAt,
     this.adminNotes,
-    this.resolvedBy,
+    this.phase,
   });
 
   /// Create from Firestore document
@@ -66,18 +77,19 @@ class IncidentReport {
       id: doc.id,
       reporterId: data['reporterId'] ?? '',
       reporterName: data['reporterName'] ?? 'Anonymous',
-      title: data['title'] ?? '',
+      title: data['title'] ?? '', // Read title if it exists
       description: data['description'] ?? '',
-      type: _parseType(data['type']),
+      type: _parseType(data['type'] ?? data['category']), // Support both names
       status: _parseStatus(data['status']),
       location: data['location'] ?? '',
-      proofUrl: data['proofUrl'],
       proofRef: data['proofRef'],
-      reportedAt:
-          (data['reportedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      proofUrl: data['proofUrl'],
+      reportedAt: (data['reportedAt'] ?? data['timeSubmitted'] as Timestamp?)
+              ?.toDate() ??
+          DateTime.now(),
       resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
       adminNotes: data['adminNotes'],
-      resolvedBy: data['resolvedBy'],
+      phase: data['phase'],
     );
   }
 
@@ -86,19 +98,45 @@ class IncidentReport {
     return {
       'reporterId': reporterId,
       'reporterName': reporterName,
-      'title': title,
+      'title': title, // Save title (optional field - schema allows this!)
       'description': description,
+
+      // Save with both names for compatibility
       'type': type.name,
-      'status': status.name,
+      'category': type.name, // NEW: Also save as category
+
+      'status': _statusToFirestore(status), // Convert to new schema format
       'location': location,
-      'proofUrl': proofUrl,
-      'proofRef': proofRef,
+      'proofRef': proofRef ?? proofUrl, // Prefer proofRef
+      'proofUrl': proofUrl, // Keep for backward compatibility
+
+      // Save with both names for compatibility
       'reportedAt': Timestamp.fromDate(reportedAt),
+      'timeSubmitted':
+          Timestamp.fromDate(reportedAt), // NEW: Also save as timeSubmitted
+
       'resolvedAt': resolvedAt != null ? Timestamp.fromDate(resolvedAt!) : null,
       'adminNotes': adminNotes,
-      'resolvedBy': resolvedBy,
+      'phase': phase,
     };
   }
+
+  // ============================================================
+  // GETTERS - For new schema field names
+  // ============================================================
+
+  /// Get reportId (new schema name for id)
+  String get reportId => id;
+
+  /// Get category (new schema name for type)
+  String get category => type.name;
+
+  /// Get timeSubmitted (new schema name for reportedAt)
+  DateTime get timeSubmitted => reportedAt;
+
+  /// Get actual image URL for display
+  /// Tries proofRef first (new schema), falls back to proofUrl
+  String? get imageUrl => proofRef ?? proofUrl;
 
   // ============================================================
   // HELPER GETTERS
@@ -200,22 +238,40 @@ class IncidentReport {
 
   static IncidentStatus _parseStatus(dynamic status) {
     if (status is String) {
-      switch (status.toLowerCase()) {
-        case 'newreport':
-        case 'new':
+      final statusStr = status.toUpperCase();
+
+      // Support new schema status values
+      switch (statusStr) {
+        case 'NEW':
+        case 'NEWREPORT':
           return IncidentStatus.newReport;
-        case 'underreview':
-        case 'under_review':
+        case 'IN_REVIEW':
+        case 'UNDERREVIEW':
+        case 'UNDER_REVIEW':
           return IncidentStatus.underReview;
-        case 'resolved':
+        case 'RESOLVED':
           return IncidentStatus.resolved;
-        case 'dismissed':
+        case 'DISMISSED':
           return IncidentStatus.dismissed;
         default:
           return IncidentStatus.newReport;
       }
     }
     return IncidentStatus.newReport;
+  }
+
+  /// Convert status enum to new schema format
+  static String _statusToFirestore(IncidentStatus status) {
+    switch (status) {
+      case IncidentStatus.newReport:
+        return 'NEW';
+      case IncidentStatus.underReview:
+        return 'IN_REVIEW';
+      case IncidentStatus.resolved:
+        return 'RESOLVED';
+      case IncidentStatus.dismissed:
+        return 'DISMISSED';
+    }
   }
 
   /// Copy with method
@@ -228,12 +284,12 @@ class IncidentReport {
     IncidentType? type,
     IncidentStatus? status,
     String? location,
-    String? proofUrl,
     String? proofRef,
+    String? proofUrl,
     DateTime? reportedAt,
     DateTime? resolvedAt,
     String? adminNotes,
-    String? resolvedBy,
+    String? phase,
   }) {
     return IncidentReport(
       id: id ?? this.id,
@@ -244,12 +300,12 @@ class IncidentReport {
       type: type ?? this.type,
       status: status ?? this.status,
       location: location ?? this.location,
-      proofUrl: proofUrl ?? this.proofUrl,
       proofRef: proofRef ?? this.proofRef,
+      proofUrl: proofUrl ?? this.proofUrl,
       reportedAt: reportedAt ?? this.reportedAt,
       resolvedAt: resolvedAt ?? this.resolvedAt,
       adminNotes: adminNotes ?? this.adminNotes,
-      resolvedBy: resolvedBy ?? this.resolvedBy,
+      phase: phase ?? this.phase,
     );
   }
 }

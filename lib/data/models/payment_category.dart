@@ -4,8 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 ///
 /// Used by admin to set up recurring fees (monthly dues, special assessments, etc.)
 /// Each category has a default fee and due day of month
+///
+/// SCHEMA COMPATIBLE: Already matches new schema requirements
 class PaymentCategory {
-  final String id;
+  final String id; // This is categoryId in the new schema
   final String categoryName;
   final String description;
   final double defaultFee;
@@ -56,6 +58,17 @@ class PaymentCategory {
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
     };
   }
+
+  // ============================================================
+  // GETTERS - For new schema compatibility
+  // ============================================================
+
+  /// Get categoryId (new schema name for id)
+  String get categoryId => id;
+
+  // ============================================================
+  // DISPLAY HELPERS - All existing functionality preserved
+  // ============================================================
 
   /// Format fee as currency
   String get formattedFee => '₱${defaultFee.toStringAsFixed(2)}';

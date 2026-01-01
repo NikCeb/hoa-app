@@ -4,28 +4,48 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 ///
 /// Generated automatically by the bill generation system
 /// Tracks payment status from OWED → PENDING_REVIEW → PAID
+///
+/// SCHEMA COMPATIBLE: Supports both old and new field names
 class Payment {
   final String id;
-  final String lotId; // Links to master_residents
-  final String residentId;
+
+  // LOT ID - Support both String and Integer
+  final String lotId; // Original field (String) - KEEP for compatibility
+  final int? lotIdInt; // New field (Integer) - for new schema
+
+  // USER/RESIDENT ID - Support both names
+  final String residentId; // Original name - KEEP for compatibility
+
+  // Display fields - KEEP for easier UI rendering
   final String residentName;
   final String lotNumber;
-  final String categoryId; // Links to payment_categories
   final String categoryName;
-  final double amount;
+
+  // CORE FIELDS
+  final String categoryId; // Links to payment_categories
+
+  // AMOUNT - Support both names
+  final double amount; // Original name - KEEP for compatibility
+
   final PaymentStatus status;
   final DateTime dateDue;
+
+  // OPTIONAL FIELDS - Keep for functionality
   final DateTime? datePaid;
   final String? proofRef; // Firebase Storage reference for proof
   final String? proofUrl; // Download URL for proof image
   final String? notes;
+
+  // TIMESTAMPS
   final DateTime createdAt;
   final DateTime? updatedAt;
+
   final String billingPeriod; // e.g., "2024-01" for January 2024
 
   Payment({
     required this.id,
     required this.lotId,
+    this.lotIdInt, // NEW: Optional integer version
     required this.residentId,
     required this.residentName,
     required this.lotNumber,
@@ -46,15 +66,35 @@ class Payment {
   /// Create from Firestore document
   factory Payment.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
+    // Handle lotId - support both String and Integer
+    String lotIdStr;
+    int? lotIdInteger;
+
+    final lotIdData = data['lotId'];
+    if (lotIdData is int) {
+      lotIdInteger = lotIdData;
+      lotIdStr = 'master_$lotIdData'; // Convert int to string for compatibility
+    } else {
+      lotIdStr = lotIdData?.toString() ?? '';
+      // Try to extract integer if it's in format "master_1001"
+      if (lotIdStr.startsWith('master_')) {
+        lotIdInteger = int.tryParse(lotIdStr.replaceAll('master_', ''));
+      }
+    }
+
     return Payment(
       id: doc.id,
-      lotId: data['lotId'] ?? '',
-      residentId: data['residentId'] ?? '',
+      lotId: lotIdStr,
+      lotIdInt: lotIdInteger,
+      residentId:
+          data['residentId'] ?? data['userId'] ?? '', // Support both names
       residentName: data['residentName'] ?? '',
       lotNumber: data['lotNumber'] ?? '',
       categoryId: data['categoryId'] ?? '',
       categoryName: data['categoryName'] ?? '',
-      amount: (data['amount'] ?? 0).toDouble(),
+      amount: (data['amount'] ?? data['amountOwed'] ?? 0)
+          .toDouble(), // Support both names
       status: _parseStatus(data['status']),
       dateDue: (data['dateDue'] as Timestamp?)?.toDate() ?? DateTime.now(),
       datePaid: (data['datePaid'] as Timestamp?)?.toDate(),
@@ -70,13 +110,22 @@ class Payment {
   /// Convert to Firestore map
   Map<String, dynamic> toFirestore() {
     return {
-      'lotId': lotId,
+      // Store lotId as integer if available, otherwise as string
+      'lotId': lotIdInt ?? lotId,
+
+      // Store both field names for compatibility
       'residentId': residentId,
+      'userId': residentId, // NEW: Also store as userId
+
       'residentName': residentName,
       'lotNumber': lotNumber,
       'categoryId': categoryId,
       'categoryName': categoryName,
+
+      // Store amount with both names for compatibility
       'amount': amount,
+      'amountOwed': amount, // NEW: Also store as amountOwed
+
       'status': status.name,
       'dateDue': Timestamp.fromDate(dateDue),
       'datePaid': datePaid != null ? Timestamp.fromDate(datePaid!) : null,
@@ -107,6 +156,23 @@ class Payment {
         return PaymentStatus.owed;
     }
   }
+
+  // ============================================================
+  // GETTERS - For new schema field names
+  // ============================================================
+
+  /// Get userId (new schema name for residentId)
+  String get userId => residentId;
+
+  /// Get amountOwed (new schema name for amount)
+  double get amountOwed => amount;
+
+  /// Get lot ID as integer (preferred for new schema)
+  int? get lotIdAsInt => lotIdInt;
+
+  // ============================================================
+  // DISPLAY HELPERS - All existing functionality preserved
+  // ============================================================
 
   /// Format amount as currency
   String get formattedAmount => '₱${amount.toStringAsFixed(2)}';
@@ -174,6 +240,7 @@ class Payment {
     return Payment(
       id: id,
       lotId: lotId,
+      lotIdInt: lotIdInt,
       residentId: residentId,
       residentName: residentName,
       lotNumber: lotNumber,
