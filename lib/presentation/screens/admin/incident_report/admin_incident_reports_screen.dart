@@ -10,24 +10,20 @@ class AdminIncidentReportsScreen extends StatefulWidget {
       _AdminIncidentReportsScreenState();
 }
 
-class _AdminIncidentReportsScreenState extends State<AdminIncidentReportsScreen>
-    with SingleTickerProviderStateMixin {
+class _AdminIncidentReportsScreenState
+    extends State<AdminIncidentReportsScreen> {
   final _repository = IncidentRepository();
-  late TabController _tabController;
+
+  // Track which view is active: 'all', 'new', 'underReview', 'resolved'
+  String _activeView = 'all';
+
   Map<String, int> _stats = {};
   bool _isLoadingStats = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
     _loadStats();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadStats() async {
@@ -65,163 +61,198 @@ class _AdminIncidentReportsScreenState extends State<AdminIncidentReportsScreen>
       ),
       body: Column(
         children: [
-          // Stats Header
+          // Clickable Cards Navigation
           Container(
             color: const Color(0xFF2563EB),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            padding: const EdgeInsets.all(16),
             child: _isLoadingStats
                 ? const Center(
                     child: CircularProgressIndicator(color: Colors.white),
                   )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                : Column(
                     children: [
-                      _buildStatCard(
-                        '${_stats['total'] ?? 0}',
-                        'Total',
-                        Colors.white.withOpacity(0.2),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildNavigationCard(
+                              title: 'All',
+                              count: _stats['total'] ?? 0,
+                              icon: Icons.list_alt,
+                              color: Colors.blue,
+                              viewKey: 'all',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildNavigationCard(
+                              title: 'New',
+                              count: _stats['new'] ?? 0,
+                              icon: Icons.new_releases,
+                              color: Colors.red,
+                              viewKey: 'new',
+                            ),
+                          ),
+                        ],
                       ),
-                      _buildStatCard(
-                        '${_stats['new'] ?? 0}',
-                        'New',
-                        Colors.red.withOpacity(0.3),
-                      ),
-                      _buildStatCard(
-                        '${_stats['underReview'] ?? 0}',
-                        'Reviewing',
-                        Colors.orange.withOpacity(0.3),
-                      ),
-                      _buildStatCard(
-                        '${_stats['resolved'] ?? 0}',
-                        'Resolved',
-                        Colors.green.withOpacity(0.3),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildNavigationCard(
+                              title: 'Under Review',
+                              count: _stats['underReview'] ?? 0,
+                              icon: Icons.rate_review,
+                              color: Colors.orange,
+                              viewKey: 'underReview',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildNavigationCard(
+                              title: 'Resolved',
+                              count: _stats['resolved'] ?? 0,
+                              icon: Icons.check_circle,
+                              color: Colors.green,
+                              viewKey: 'resolved',
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
           ),
 
-          // Tab Bar
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              labelColor: const Color(0xFF2563EB),
-              unselectedLabelColor: Colors.grey[600],
-              indicatorColor: const Color(0xFF2563EB),
-              indicatorWeight: 3,
-              isScrollable: true,
-              tabs: [
-                Tab(
-                  child: Row(
-                    children: [
-                      const Text('All '),
-                      Text(
-                        '(${_stats['total'] ?? 0})',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                Tab(
-                  child: Row(
-                    children: [
-                      const Text('New '),
-                      Text(
-                        '(${_stats['new'] ?? 0})',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                Tab(
-                  child: Row(
-                    children: [
-                      const Text('Under Review '),
-                      Text(
-                        '(${_stats['underReview'] ?? 0})',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                Tab(
-                  child: Row(
-                    children: [
-                      const Text('Resolved '),
-                      Text(
-                        '(${_stats['resolved'] ?? 0})',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Tab Views
+          // Reports List (changes based on selected card)
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
+            child: _buildReportsList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavigationCard({
+    required String title,
+    required int count,
+    required IconData icon,
+    required Color color,
+    required String viewKey,
+  }) {
+    final isActive = _activeView == viewKey;
+
+    return Card(
+      elevation: isActive ? 4 : 1,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: isActive
+            ? BorderSide(color: Colors.white, width: 2)
+            : BorderSide.none,
+      ),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _activeView = viewKey;
+          });
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 80,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            gradient: isActive
+                ? LinearGradient(
+                    colors: [color, color.withOpacity(0.7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: isActive ? null : color.withOpacity(0.15),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isActive ? Colors.white : color,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                count.toString(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isActive ? Colors.white : color,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: isActive ? Colors.white : color,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportsList() {
+    Stream<List<IncidentReport>> stream;
+
+    switch (_activeView) {
+      case 'new':
+        stream = _repository.getReportsByStatus(IncidentStatus.newReport);
+        break;
+      case 'underReview':
+        stream = _repository.getReportsByStatus(IncidentStatus.underReview);
+        break;
+      case 'resolved':
+        stream = _repository.getReportsByStatus(IncidentStatus.resolved);
+        break;
+      case 'all':
+      default:
+        stream = _repository.getAllReports();
+    }
+
+    return StreamBuilder<List<IncidentReport>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildAllTab(),
-                _buildStatusTab(IncidentStatus.newReport),
-                _buildStatusTab(IncidentStatus.underReview),
-                _buildStatusTab(IncidentStatus.resolved),
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error: ${snapshot.error}'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _loadStats,
+                  child: const Text('Retry'),
+                ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String value, String label, Color bgColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAllTab() {
-    return StreamBuilder<List<IncidentReport>>(
-      stream: _repository.getAllReports(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          );
         }
 
         final reports = snapshot.data ?? [];
 
         if (reports.isEmpty) {
-          return _buildEmptyState('No reports yet');
+          return _buildEmptyState();
         }
 
         return RefreshIndicator(
@@ -238,49 +269,41 @@ class _AdminIncidentReportsScreenState extends State<AdminIncidentReportsScreen>
     );
   }
 
-  Widget _buildStatusTab(IncidentStatus status) {
-    return StreamBuilder<List<IncidentReport>>(
-      stream: _repository.getReportsByStatus(status),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+  Widget _buildEmptyState() {
+    String message;
+    switch (_activeView) {
+      case 'new':
+        message = 'No new reports';
+        break;
+      case 'underReview':
+        message = 'No reports under review';
+        break;
+      case 'resolved':
+        message = 'No resolved reports';
+        break;
+      default:
+        message = 'No reports yet';
+    }
 
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        final reports = snapshot.data ?? [];
-
-        if (reports.isEmpty) {
-          return _buildEmptyState('No ${status.name} reports');
-        }
-
-        return RefreshIndicator(
-          onRefresh: _loadStats,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: reports.length,
-            itemBuilder: (context, index) {
-              return _buildReportCard(reports[index]);
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildEmptyState(String message) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+          Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             message,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Check back later',
+            style: TextStyle(
+              fontSize: 14,
               color: Colors.grey[600],
             ),
           ),
@@ -292,6 +315,7 @@ class _AdminIncidentReportsScreenState extends State<AdminIncidentReportsScreen>
   Widget _buildReportCard(IncidentReport report) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -383,7 +407,7 @@ class _AdminIncidentReportsScreenState extends State<AdminIncidentReportsScreen>
                     report.timeAgo,
                     style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
-                  if (report.proofUrl != null)
+                  if (report.proofUrl != null || report.imageUrl != null)
                     Row(
                       children: [
                         Icon(Icons.photo, size: 16, color: Colors.grey[600]),
@@ -490,7 +514,7 @@ class _AdminIncidentReportsScreenState extends State<AdminIncidentReportsScreen>
               ],
 
               // Photo
-              if (report.proofUrl != null) ...[
+              if (report.proofUrl != null || report.imageUrl != null) ...[
                 const SizedBox(height: 20),
                 const Text(
                   'Photo Proof',
@@ -499,7 +523,7 @@ class _AdminIncidentReportsScreenState extends State<AdminIncidentReportsScreen>
                 const SizedBox(height: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(report.proofUrl!),
+                  child: Image.network(report.imageUrl ?? report.proofUrl!),
                 ),
               ],
 
@@ -562,7 +586,7 @@ class _AdminIncidentReportsScreenState extends State<AdminIncidentReportsScreen>
           ),
         ),
       ),
-    ).then((_) => _loadStats()); // Refresh stats when bottom sheet closes
+    ).then((_) => _loadStats());
   }
 
   Widget _buildDetailRow(IconData icon, String label, String value) {

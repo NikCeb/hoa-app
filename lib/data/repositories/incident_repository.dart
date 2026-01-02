@@ -137,7 +137,7 @@ class IncidentRepository {
   /// Used in: Admin dashboard
   Stream<List<IncidentReport>> getAllReports() {
     return _reportsCollection
-        .orderBy('reportedAt', descending: true)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs
@@ -150,9 +150,26 @@ class IncidentRepository {
   ///
   /// Example: Get only NEW reports
   Stream<List<IncidentReport>> getReportsByStatus(IncidentStatus status) {
+    // Convert enum to the format used in Firestore
+    String statusValue;
+    switch (status) {
+      case IncidentStatus.newReport:
+        statusValue = 'new';
+        break;
+      case IncidentStatus.underReview:
+        statusValue = 'under_review';
+        break;
+      case IncidentStatus.resolved:
+        statusValue = 'resolved';
+        break;
+      case IncidentStatus.dismissed:
+        statusValue = 'dismissed';
+        break;
+    }
+
     return _reportsCollection
-        .where('status', isEqualTo: status.name)
-        .orderBy('reportedAt', descending: true)
+        .where('status', isEqualTo: statusValue)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs
@@ -186,13 +203,13 @@ class IncidentRepository {
 
       final status = data['status'] as String?;
 
-      switch (status) {
-        case 'newReport':
+      switch (status?.toLowerCase()) {
         case 'new':
+        case 'newreport':
           newCount++;
           break;
-        case 'underReview':
         case 'under_review':
+        case 'underreview':
           underReview++;
           break;
         case 'resolved':
