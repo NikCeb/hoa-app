@@ -7,7 +7,7 @@ import 'domain/services/verification_service.dart';
 import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/auth/register_screen.dart';
 import 'presentation/screens/admin/admin_dashboard.dart';
-import 'presentation/screens/user/user_main_navigation.dart';
+import 'presentation/screens/user/user_nagivation/user_main_navigation.dart';
 import 'core/constants/app_colors.dart';
 
 void main() async {
