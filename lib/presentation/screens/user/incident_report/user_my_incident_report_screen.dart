@@ -37,7 +37,14 @@ class MyIncidentReportScreen extends StatelessWidget {
 
           if (snapshot.hasError) {
             return Center(
-              child: Text('Error: ${snapshot.error}'),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error: ${snapshot.error}'),
+                ],
+              ),
             );
           }
 
@@ -75,7 +82,7 @@ class MyIncidentReportScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             itemCount: reports.length,
             itemBuilder: (context, index) {
-              return _buildReportCard(context, reports[index]);
+              return _buildReportCard(context, reports[index], repository);
             },
           );
         },
@@ -96,14 +103,15 @@ class MyIncidentReportScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildReportCard(BuildContext context, IncidentReport report) {
+  Widget _buildReportCard(BuildContext context, IncidentReport report,
+      IncidentRepository repository) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
-        onTap: () => _showReportDetails(context, report),
+        onTap: () => _showReportDetails(context, report, repository),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -168,7 +176,7 @@ class MyIncidentReportScreen extends StatelessWidget {
                       color: Colors.grey[500],
                     ),
                   ),
-                  if (report.proofUrl != null)
+                  if (report.proofRef != null)
                     Row(
                       children: [
                         Icon(Icons.photo, size: 16, color: Colors.grey[600]),
@@ -216,7 +224,8 @@ class MyIncidentReportScreen extends StatelessWidget {
     );
   }
 
-  void _showReportDetails(BuildContext context, IncidentReport report) {
+  void _showReportDetails(BuildContext context, IncidentReport report,
+      IncidentRepository repository) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -264,13 +273,12 @@ class MyIncidentReportScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Type and Location
+              // Details
               _buildInfoRow(Icons.label, 'Type', report.typeDisplayName),
               const SizedBox(height: 12),
               _buildInfoRow(Icons.location_on, 'Location', report.location),
               const SizedBox(height: 12),
               _buildInfoRow(Icons.access_time, 'Reported', report.timeAgo),
-
               if (report.resolvedAt != null) ...[
                 const SizedBox(height: 12),
                 _buildInfoRow(
@@ -279,7 +287,6 @@ class MyIncidentReportScreen extends StatelessWidget {
                   _formatDate(report.resolvedAt!),
                 ),
               ],
-
               const SizedBox(height: 20),
 
               // Description
@@ -346,7 +353,7 @@ class MyIncidentReportScreen extends StatelessWidget {
               ],
 
               // Photo Proof
-              if (report.proofUrl != null) ...[
+              if (report.proofRef != null) ...[
                 const SizedBox(height: 20),
                 const Text(
                   'Photo Proof',
@@ -359,7 +366,7 @@ class MyIncidentReportScreen extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Image.network(
-                    report.proofUrl!,
+                    report.proofRef!,
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
@@ -367,6 +374,79 @@ class MyIncidentReportScreen extends StatelessWidget {
                         child: CircularProgressIndicator(),
                       );
                     },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 200,
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: Icon(Icons.error_outline, size: 48),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+
+              // ACTION BUTTONS - Only show if status is NEW
+              if (report.isNew) ...[
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Delete Report'),
+                          content: const Text(
+                            'Are you sure you want to delete this report? This action cannot be undone.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                              ),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed == true) {
+                        try {
+                          await repository.deleteReport(report.id);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Report deleted successfully'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to delete: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.delete),
+                    label: const Text('Delete Report'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
                 ),
               ],

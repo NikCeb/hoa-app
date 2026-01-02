@@ -157,7 +157,7 @@ class _CreateIncidentReportScreenState
             TextFormField(
               controller: _titleController,
               decoration: InputDecoration(
-                labelText: 'Title',
+                labelText: 'Title *',
                 hintText: 'Brief description of the incident',
                 prefixIcon: const Icon(Icons.title),
                 border: OutlineInputBorder(
@@ -183,7 +183,7 @@ class _CreateIncidentReportScreenState
             TextFormField(
               controller: _descriptionController,
               decoration: InputDecoration(
-                labelText: 'Description',
+                labelText: 'Description *',
                 hintText: 'Provide details about the incident',
                 prefixIcon: const Icon(Icons.description),
                 border: OutlineInputBorder(
@@ -218,7 +218,7 @@ class _CreateIncidentReportScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Incident Type',
+                    'Incident Type *',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -256,7 +256,7 @@ class _CreateIncidentReportScreenState
             TextFormField(
               controller: _locationController,
               decoration: InputDecoration(
-                labelText: 'Location',
+                labelText: 'Location *',
                 hintText: 'Where did this occur?',
                 prefixIcon: const Icon(Icons.location_on),
                 border: OutlineInputBorder(

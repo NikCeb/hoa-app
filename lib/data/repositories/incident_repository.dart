@@ -4,13 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/incident_report.dart';
 
-/// Repository for incident report operations
-///
-/// Features:
-/// - Create reports with photo upload
-/// - Stream of reports for users and admins
-/// - Update report status (admin only)
-/// - Upload photos to Firebase Storage
 class IncidentRepository {
   static final IncidentRepository _instance = IncidentRepository._internal();
   factory IncidentRepository() => _instance;
@@ -24,16 +17,9 @@ class IncidentRepository {
       _firestore.collection('incident_reports');
 
   // ============================================================
-  // CREATE OPERATIONS
+  // CREATE
   // ============================================================
 
-  /// Creates a new incident report
-  ///
-  /// Flow:
-  /// 1. Upload photo to Storage (if provided)
-  /// 2. Get download URL
-  /// 3. Create report document in Firestore
-  /// 4. Return created report
   Future<IncidentReport> createReport({
     required String title,
     required String description,
@@ -48,18 +34,15 @@ class IncidentRepository {
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
     final userData = userDoc.data() as Map<String, dynamic>;
     final reporterName = '${userData['firstName']} ${userData['lastName']}';
+    final phase = userData['phase'] ?? '';
 
-    String? proofUrl;
     String? proofRef;
 
     // Upload photo if provided
     if (proofImage != null) {
-      final uploadResult = await _uploadProofImage(user.uid, proofImage);
-      proofUrl = uploadResult['url'];
-      proofRef = uploadResult['ref'];
+      proofRef = await _uploadProofImage(user.uid, proofImage);
     }
 
-    // Create report object
     final report = IncidentReport(
       id: '',
       reporterId: user.uid,
@@ -69,9 +52,9 @@ class IncidentRepository {
       type: type,
       status: IncidentStatus.newReport,
       location: location,
-      proofUrl: proofUrl,
-      proofRef: proofRef,
+      phase: phase,
       reportedAt: DateTime.now(),
+      proofRef: proofRef,
     );
 
     // Save to Firestore
@@ -80,50 +63,33 @@ class IncidentRepository {
     return report.copyWith(id: docRef.id);
   }
 
-  /// Upload proof image to Firebase Storage
-  ///
-  /// Path: incident_reports/{userId}/{timestamp}.jpg
-  /// Returns: {url: downloadUrl, ref: storagePath}
-  Future<Map<String, String>> _uploadProofImage(
-    String userId,
-    File imageFile,
-  ) async {
+  Future<String> _uploadProofImage(String userId, File imageFile) async {
     try {
-      // Create unique filename
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = '$timestamp.jpg';
       final path = 'incident_reports/$userId/$fileName';
 
-      // Upload to Storage
       final ref = _storage.ref().child(path);
-      final uploadTask = await ref.putFile(imageFile);
+      await ref.putFile(imageFile);
+      final downloadUrl = await ref.getDownloadURL();
 
-      // Get download URL
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
-
-      return {
-        'url': downloadUrl,
-        'ref': path,
-      };
+      return downloadUrl;
     } catch (e) {
       throw Exception('Failed to upload image: $e');
     }
   }
 
   // ============================================================
-  // READ OPERATIONS
+  // READ
   // ============================================================
 
-  /// Get current user's reports
-  ///
-  /// Used in: User's "My Reports" screen
   Stream<List<IncidentReport>> getUserReports() {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return Stream.value([]);
 
     return _reportsCollection
-        .where('reporterId', isEqualTo: userId)
-        .orderBy('reportedAt', descending: true)
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs
@@ -132,9 +98,6 @@ class IncidentRepository {
     });
   }
 
-  /// Get ALL reports (admin only)
-  ///
-  /// Used in: Admin dashboard
   Stream<List<IncidentReport>> getAllReports() {
     return _reportsCollection
         .orderBy('createdAt', descending: true)
@@ -146,24 +109,20 @@ class IncidentRepository {
     });
   }
 
-  /// Get reports by status (admin filtering)
-  ///
-  /// Example: Get only NEW reports
   Stream<List<IncidentReport>> getReportsByStatus(IncidentStatus status) {
-    // Convert enum to the format used in Firestore
     String statusValue;
     switch (status) {
       case IncidentStatus.newReport:
-        statusValue = 'new';
+        statusValue = 'NEW';
         break;
       case IncidentStatus.underReview:
-        statusValue = 'under_review';
+        statusValue = 'IN_REVIEW';
         break;
       case IncidentStatus.resolved:
-        statusValue = 'resolved';
+        statusValue = 'RESOLVED';
         break;
       case IncidentStatus.dismissed:
-        statusValue = 'dismissed';
+        statusValue = 'DISMISSED';
         break;
     }
 
@@ -178,16 +137,12 @@ class IncidentRepository {
     });
   }
 
-  /// Get single report by ID
   Future<IncidentReport?> getReport(String reportId) async {
     final doc = await _reportsCollection.doc(reportId).get();
     if (!doc.exists) return null;
     return IncidentReport.fromFirestore(doc);
   }
 
-  /// Get report statistics
-  ///
-  /// Returns: {total, new, underReview, resolved, dismissed}
   Future<Map<String, int>> getReportStats() async {
     final snapshot = await _reportsCollection.get();
 
@@ -203,19 +158,18 @@ class IncidentRepository {
 
       final status = data['status'] as String?;
 
-      switch (status?.toLowerCase()) {
-        case 'new':
-        case 'newreport':
+      switch (status?.toUpperCase()) {
+        case 'NEW':
           newCount++;
           break;
-        case 'under_review':
-        case 'underreview':
+        case 'IN_REVIEW':
+        case 'UNDER_REVIEW':
           underReview++;
           break;
-        case 'resolved':
+        case 'RESOLVED':
           resolved++;
           break;
-        case 'dismissed':
+        case 'DISMISSED':
           dismissed++;
           break;
       }
@@ -229,32 +183,23 @@ class IncidentRepository {
       'dismissed': dismissed,
     };
   }
+
   // ============================================================
-  // UPDATE OPERATIONS (Admin)
+  // UPDATE
   // ============================================================
 
-  /// Update report status (admin action)
-  ///
-  /// Flow when admin resolves:
-  /// 1. Update status to RESOLVED
-  /// 2. Set resolvedAt timestamp
-  /// 3. Set resolvedBy to admin UID
-  /// 4. Optionally add admin notes
   Future<void> updateReportStatus({
     required String reportId,
     required IncidentStatus newStatus,
     String? adminNotes,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not authenticated');
-
     final updateData = <String, dynamic>{
-      'status': newStatus.name,
+      'status': IncidentReport.statusToFirestore(newStatus),
+      'updatedAt': Timestamp.now(),
     };
 
     if (newStatus == IncidentStatus.resolved) {
       updateData['resolvedAt'] = Timestamp.now();
-      updateData['resolvedBy'] = user.uid;
     }
 
     if (adminNotes != null && adminNotes.isNotEmpty) {
@@ -264,40 +209,23 @@ class IncidentRepository {
     await _reportsCollection.doc(reportId).update(updateData);
   }
 
-  /// Add admin notes to a report
-  Future<void> addAdminNotes({
-    required String reportId,
-    required String notes,
-  }) async {
-    await _reportsCollection.doc(reportId).update({
-      'adminNotes': notes,
-    });
-  }
-
   // ============================================================
-  // DELETE OPERATIONS
+  // DELETE
   // ============================================================
 
-  /// Delete a report and its photo
-  ///
-  /// 1. Delete photo from Storage
-  /// 2. Delete report from Firestore
   Future<void> deleteReport(String reportId) async {
     try {
-      // Get report to find photo reference
       final report = await getReport(reportId);
 
       if (report != null && report.proofRef != null) {
-        // Delete photo from Storage
         try {
-          await _storage.ref().child(report.proofRef!).delete();
+          final ref = _storage.refFromURL(report.proofRef!);
+          await ref.delete();
         } catch (e) {
-          // Photo might not exist, continue anyway
           print('Error deleting photo: $e');
         }
       }
 
-      // Delete report document
       await _reportsCollection.doc(reportId).delete();
     } catch (e) {
       throw Exception('Failed to delete report: $e');
