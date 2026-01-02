@@ -1,14 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/verification_request.dart';
-import '../../data/models/user_model.dart';
 import '../../data/repositories/verification_request_repository.dart';
-import '../../data/repositories/user_repository.dart';
 import '../../data/repositories/master_resident_repository.dart';
 
 class VerificationService {
   final _firestore = FirebaseFirestore.instance;
   final _verificationRepo = VerificationRequestRepository();
-  final _userRepo = UserRepository();
   final _masterResidentRepo = MasterResidentRepository();
 
   Future<void> approveVerification({
