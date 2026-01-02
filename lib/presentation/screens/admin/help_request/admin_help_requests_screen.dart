@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../data/models/help_request.dart';
-import '../../../../data/repositories/request_repository.dart';
 import '../../user/help_request/user_help_request_detail_screen.dart';
 
 class AdminHelpRequestsScreen extends StatefulWidget {
@@ -14,7 +13,6 @@ class AdminHelpRequestsScreen extends StatefulWidget {
 
 class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
     with SingleTickerProviderStateMixin {
-  final _repository = RequestRepository();
   late TabController _tabController;
 
   @override
@@ -62,7 +60,7 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
               indicatorWeight: 3,
               tabs: const [
                 Tab(text: 'All'),
-                Tab(text: 'Open'),
+                Tab(text: 'Active'),
                 Tab(text: 'In Progress'),
               ],
             ),
@@ -74,7 +72,7 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
               controller: _tabController,
               children: [
                 _buildAllRequestsTab(),
-                _buildOpenRequestsTab(),
+                _buildActiveRequestsTab(),
                 _buildInProgressTab(),
               ],
             ),
@@ -88,7 +86,7 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('help_requests')
-          .orderBy('postedAt', descending: true)
+          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -96,7 +94,16 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
         }
 
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error: ${snapshot.error}'),
+              ],
+            ),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -112,12 +119,12 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
     );
   }
 
-  Widget _buildOpenRequestsTab() {
+  Widget _buildActiveRequestsTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('help_requests')
-          .where('status', isEqualTo: 'open')
-          .orderBy('postedAt', descending: true)
+          .where('status', isEqualTo: 'active')
+          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -125,11 +132,20 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
         }
 
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error: ${snapshot.error}'),
+              ],
+            ),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildEmptyState('No open requests');
+          return _buildEmptyState('No active requests');
         }
 
         final requests = snapshot.data!.docs
@@ -146,7 +162,7 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
       stream: FirebaseFirestore.instance
           .collection('help_requests')
           .where('status', isEqualTo: 'inProgress')
-          .orderBy('postedAt', descending: true)
+          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -154,7 +170,16 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
         }
 
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error: ${snapshot.error}'),
+              ],
+            ),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -225,17 +250,15 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Color(int.parse(
-                              request.statusColor.replaceFirst('#', '0xFF')))
-                          .withOpacity(0.1),
+                      color:
+                          _getStatusColor(request.status.name).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      request.statusText,
+                      _getStatusText(request.status.name),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Color(int.parse(
-                            request.statusColor.replaceFirst('#', '0xFF'))),
+                        color: _getStatusColor(request.status.name),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -251,7 +274,9 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
                     radius: 16,
                     backgroundColor: const Color(0xFF2563EB),
                     child: Text(
-                      request.requesterName[0].toUpperCase(),
+                      request.requesterName.isNotEmpty
+                          ? request.requesterName[0].toUpperCase()
+                          : 'U',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -333,7 +358,7 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
                     child: Text(
                       request.location.isNotEmpty
                           ? request.location
-                          : request.distanceText,
+                          : 'No location',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[700],
@@ -392,6 +417,40 @@ class _AdminHelpRequestsScreenState extends State<AdminHelpRequestsScreen>
         ),
       ),
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'active':
+      case 'open':
+        return Colors.green;
+      case 'inprogress':
+      case 'in progress':
+        return Colors.orange;
+      case 'completed':
+        return Colors.blue;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getStatusText(String status) {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return 'Active';
+      case 'open':
+        return 'Open';
+      case 'inprogress':
+        return 'In Progress';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return status;
+    }
   }
 
   Widget _buildEmptyState(String message) {
