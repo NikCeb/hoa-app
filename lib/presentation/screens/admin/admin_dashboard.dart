@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../data/repositories/auth_repository.dart';
 import 'financial/admin_financial_overview_screen.dart';
-import 'verification/admin_verification_queue_screen.dart';
+import 'verification/admin_verification_hub_screen.dart';
 import 'admin_governance_screen.dart';
 import 'help_request/admin_help_requests_screen.dart';
 import 'incident_report/admin_incident_reports_screen.dart';
@@ -104,7 +104,7 @@ class AdminDashboard extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
-                              const AdminVerificationQueueScreen(),
+                              const AdminVerificationHubScreen(),
                         )),
                   ),
                   const SizedBox(height: 12),
