@@ -157,6 +157,25 @@ class AdminDashboard extends StatelessWidget {
                   const SizedBox(height: 16),
                   _buildSectionCard(
                     context,
+                    icon: Icons.announcement,
+                    iconColor: Color.fromARGB(255, 70, 169, 27),
+                    title: 'Announcements',
+                    subtitle: 'Manage community announcements',
+                    gradient: LinearGradient(
+                      colors: [
+                        Color.fromARGB(255, 90, 226, 183).withOpacity(0.1),
+                        Color.fromARGB(255, 88, 148, 128).withOpacity(0.05),
+                      ],
+                    ),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AdminHelpRequestsScreen(),
+                        )),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSectionCard(
+                    context,
                     icon: Icons.help_outline,
                     iconColor: const Color(0xFFEAB308),
                     title: 'Help Requests',
@@ -191,6 +210,25 @@ class AdminDashboard extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (context) =>
                               const AdminIncidentReportsScreen(),
+                        )),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSectionCard(
+                    context,
+                    icon: Icons.shopping_bag,
+                    iconColor: const Color(0xFF2563EB),
+                    title: 'MarketPlace Management',
+                    subtitle: 'Manage community marketplace listings',
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF2563EB).withOpacity(0.1),
+                        const Color(0xFF3B82F6).withOpacity(0.05),
+                      ],
+                    ),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AdminHelpRequestsScreen(),
                         )),
                   ),
                   const SizedBox(height: 32),
