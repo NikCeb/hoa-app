@@ -131,7 +131,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pushReplacementNamed(context, '/home');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/login',
+            (route) => false,
+          );
         }
       } else {
         final verificationRequest = VerificationRequest(
@@ -157,7 +161,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               backgroundColor: Colors.orange,
             ),
           );
-          Navigator.pushReplacementNamed(context, '/home');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/login',
+            (route) => false,
+          );
         }
       }
     } on FirebaseAuthException catch (e) {

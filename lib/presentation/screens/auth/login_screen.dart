@@ -60,9 +60,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         if (user.isAdmin) {
-          Navigator.pushReplacementNamed(context, '/admin');
+          Navigator.pushReplacementNamed(context, '/admin-dashboard');
         } else {
-          Navigator.pushReplacementNamed(context, '/home');
+          Navigator.pushReplacementNamed(context, '/user-dashboard');
         }
       }
     } on FirebaseAuthException catch (e) {
