@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../data/repositories/auth_repository.dart';
 import 'financial/admin_financial_overview_screen.dart';
 import 'verification/admin_verification_hub_screen.dart';
 import 'help_request/admin_help_requests_screen.dart';
@@ -10,6 +9,8 @@ import 'financial/admin_payments_screen.dart';
 import 'marketplace/admin_marketplace_screen.dart';
 import 'admin_profile_screen.dart';
 import 'admin_governance_screen.dart';
+import 'announcement/admin_announcements_screen.dart';
+import '../../../data/repositories/auth_repository.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -171,7 +172,8 @@ class AdminDashboard extends StatelessWidget {
                     onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const AdminHelpRequestsScreen(),
+                          builder: (context) =>
+                              const AdminAnnouncementsScreen(),
                         )),
                   ),
                   const SizedBox(height: 12),
