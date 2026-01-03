@@ -20,14 +20,13 @@ class _AdminAddToMasterlistScreenState
 
   bool _isSubmitting = false;
   String _selectedPhase = 'Phase 1';
+  String _selectedBlock = 'Block 1';
+  String _selectedLot = 'Lot 1';
   String _selectedStatus = 'occupied';
 
-  final List<String> _phases = [
-    'Phase 1',
-    'Phase 2',
-    'Phase 3',
-    'Phase 4',
-  ];
+  final List<String> _phases = ['Phase 1', 'Phase 2', 'Phase 3'];
+  final List<String> _blocks = List.generate(5, (i) => 'Block ${i + 1}');
+  final List<String> _lots = List.generate(20, (i) => 'Lot ${i + 1}');
 
   final List<String> _statuses = [
     'occupied',
@@ -259,6 +258,62 @@ class _AdminAddToMasterlistScreenState
                   }).toList(),
                   onChanged: (value) {
                     setState(() => _selectedPhase = value!);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Block Selection
+            _buildLabel('Block *'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedBlock,
+                  isExpanded: true,
+                  items: _blocks.map((block) {
+                    return DropdownMenuItem(
+                      value: block,
+                      child: Text(block),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() => _selectedBlock = value!);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Lot Selection
+            _buildLabel('Lot *'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedLot,
+                  isExpanded: true,
+                  items: _lots.map((lot) {
+                    return DropdownMenuItem(
+                      value: lot,
+                      child: Text(lot),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() => _selectedLot = value!);
                   },
                 ),
               ),
