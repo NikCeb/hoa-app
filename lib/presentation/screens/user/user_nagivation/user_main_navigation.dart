@@ -3,7 +3,7 @@ import '../../../../core/constants/app_colors.dart';
 // import '../../../../../../core/constants/app_colors.dart';
 import '../user_home_screen.dart';
 // import '../market/user_marketplace_screen.dart';
-import '../help_request/user_my_help_request_screen.dart';
+import '../user_screen/user_my_requests_screen.dart';
 import '../user_screen/user_profile_screen.dart';
 import '../payment/user_payment_screen.dart';
 
@@ -20,7 +20,7 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const PaymentScreen(),
-    const MyHelpRequestScreen(),
+    const MyRequestsScreen(),
     const ProfileScreen(),
   ];
 
