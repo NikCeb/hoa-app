@@ -8,7 +8,7 @@ import 'incident_report/admin_incident_reports_screen.dart';
 import 'financial/admin_payments_screen.dart';
 import 'marketplace/admin_marketplace_screen.dart';
 import 'admin_profile_screen.dart';
-import 'admin_governance_screen.dart';
+import 'elections/admin_elections_screen.dart';
 import 'announcement/admin_announcements_screen.dart';
 import '../../../data/repositories/auth_repository.dart';
 
@@ -133,8 +133,8 @@ class AdminDashboard extends StatelessWidget {
                     context,
                     icon: Icons.gavel,
                     iconColor: const Color(0xFF7C3AED),
-                    title: 'Governance & Reports',
-                    subtitle: 'Announcements, reports, and elections',
+                    title: 'Elections',
+                    subtitle: 'Manage voting and candidates',
                     gradient: LinearGradient(
                       colors: [
                         const Color(0xFF7C3AED).withOpacity(0.1),
@@ -144,7 +144,7 @@ class AdminDashboard extends StatelessWidget {
                     onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const AdminGovernanceScreen(),
+                          builder: (context) => const AdminElectionsScreen(),
                         )),
                   ),
                   const SizedBox(height: 24),
