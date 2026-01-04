@@ -220,7 +220,7 @@ class AdminDashboard extends StatelessWidget {
                     context,
                     icon: Icons.shopping_bag,
                     iconColor: const Color(0xFF2563EB),
-                    title: 'MarketPlace Management',
+                    title: 'Marketplace Management',
                     subtitle: 'Manage community marketplace listings',
                     gradient: LinearGradient(
                       colors: [
