@@ -280,4 +280,55 @@ class MarketplaceRepository {
       'withdrawn': withdrawn,
     };
   }
+
+  /// Get all categories for admin (including inactive)
+  Stream<List<MarketplaceCategory>> getAllCategories() {
+    return _categoriesCollection
+        .orderBy('sortOrder')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => MarketplaceCategory.fromFirestore(doc))
+          .toList();
+    });
+  }
+
+  /// Create new category
+  Future<void> createCategory({
+    required String categoryName,
+    required int sortOrder,
+  }) async {
+    await _categoriesCollection.add({
+      'categoryName': categoryName,
+      'sortOrder': sortOrder,
+      'isActive': true,
+    });
+  }
+
+  /// Update category
+  Future<void> updateCategory(
+    String categoryId,
+    Map<String, dynamic> updates,
+  ) async {
+    await _categoriesCollection.doc(categoryId).update(updates);
+  }
+
+  /// Delete category
+  Future<void> deleteCategory(String categoryId) async {
+    await _categoriesCollection.doc(categoryId).delete();
+  }
+
+  /// Toggle category active status
+  Future<void> toggleCategoryStatus(String categoryId, bool isActive) async {
+    await _categoriesCollection.doc(categoryId).update({
+      'isActive': isActive,
+    });
+  }
+
+  Future<void> updateListing(
+    String listingId,
+    Map<String, dynamic> updates,
+  ) async {
+    await _listingsCollection.doc(listingId).update(updates);
+  }
 }

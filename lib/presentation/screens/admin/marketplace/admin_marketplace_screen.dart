@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/marketplace_listing.dart';
+import '../../../../data/models/marketplace_category.dart';
 import '../../../../data/repositories/marketplace_repository.dart';
+import 'admin_marketplace_create_category_screen.dart';
 
 class AdminMarketplaceScreen extends StatefulWidget {
   const AdminMarketplaceScreen({Key? key}) : super(key: key);
@@ -10,10 +12,10 @@ class AdminMarketplaceScreen extends StatefulWidget {
 }
 
 class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
-  String _activeView = 'all'; // 'all', 'active', 'sold', 'withdrawn'
+  String _activeView = 'categories'; // Default to categories
   final _repository = MarketplaceRepository();
 
-  int _allCount = 0;
+  int _categoriesCount = 0;
   int _activeCount = 0;
   int _soldCount = 0;
   int _withdrawnCount = 0;
@@ -25,10 +27,20 @@ class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
   }
 
   Future<void> _loadCounts() async {
+    // Load listing stats
     final stats = await _repository.getListingStats();
+
+    // Load categories count
+    _repository.getAllCategories().listen((categories) {
+      if (mounted) {
+        setState(() {
+          _categoriesCount = categories.length;
+        });
+      }
+    });
+
     if (mounted) {
       setState(() {
-        _allCount = stats['total'] ?? 0;
         _activeCount = stats['active'] ?? 0;
         _soldCount = stats['sold'] ?? 0;
         _withdrawnCount = stats['withdrawn'] ?? 0;
@@ -74,20 +86,19 @@ class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
               ),
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Center(
-                // CENTER THE ROW
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min, // Important for centering
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildNavigationCard(
-                          title: 'All',
-                          count: _allCount,
-                          icon: Icons.list,
-                          color: Colors.blue,
-                          viewKey: 'all',
+                          title: 'Categories',
+                          count: _categoriesCount,
+                          icon: Icons.category,
+                          color: Colors.purple,
+                          viewKey: 'categories',
                         ),
                         const SizedBox(width: 8),
                         _buildNavigationCard(
@@ -120,11 +131,32 @@ class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
               ),
             ),
           ),
+
+          // Content
           Expanded(
-            child: _buildListingsList(),
+            child: _activeView == 'categories'
+                ? _buildCategoriesList()
+                : _buildListingsList(),
           ),
         ],
       ),
+      // Floating button ONLY shows when on categories tab
+      floatingActionButton: _activeView == 'categories'
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const AdminMarketplaceCreateCategoryScreen(),
+                  ),
+                );
+              },
+              backgroundColor: const Color(0xFF2563EB),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Category'),
+            )
+          : null,
     );
   }
 
@@ -154,9 +186,8 @@ class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
         },
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          width: 75, // Slightly smaller
-          padding: const EdgeInsets.symmetric(
-              vertical: 6, horizontal: 4), // Reduced padding
+          width: 75,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             gradient: isActive
@@ -173,22 +204,23 @@ class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
             children: [
               Icon(
                 icon,
-                size: 18, // Slightly smaller icon
+                size: 18,
                 color: isActive ? Colors.white : color,
               ),
-              const SizedBox(height: 1), // Minimal spacing
+              const SizedBox(height: 1),
               Text(
                 count.toString(),
                 style: TextStyle(
-                  fontSize: 16, // Slightly smaller
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: isActive ? Colors.white : color,
                 ),
               ),
+              const SizedBox(height: 1),
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 9, // Smaller text
+                  fontSize: 9,
                   fontWeight: FontWeight.w600,
                   color: isActive ? Colors.white : color,
                 ),
@@ -200,6 +232,315 @@ class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
       ),
     );
   }
+
+  // ============================================================
+  // CATEGORIES LIST
+  // ============================================================
+
+  Widget _buildCategoriesList() {
+    return StreamBuilder<List<MarketplaceCategory>>(
+      stream: _repository.getAllCategories(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error: ${snapshot.error}'),
+              ],
+            ),
+          );
+        }
+
+        final categories = snapshot.data ?? [];
+
+        if (categories.isEmpty) {
+          return _buildEmptyCategories();
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: categories.length,
+          itemBuilder: (context, index) {
+            return _buildCategoryCard(categories[index]);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyCategories() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.category, size: 80, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No Categories Yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create your first category',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryCard(MarketplaceCategory category) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: category.isActive
+                ? const Color(0xFF2563EB).withOpacity(0.1)
+                : Colors.grey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.category,
+            color: category.isActive ? const Color(0xFF2563EB) : Colors.grey,
+          ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                category.categoryName,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (!category.isActive)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'INACTIVE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            'Sort Order: ${category.sortOrder}',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+        ),
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) async {
+            if (value == 'edit') {
+              _showEditCategoryDialog(category);
+            } else if (value == 'toggle') {
+              await _repository.toggleCategoryStatus(
+                category.id,
+                !category.isActive,
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      category.isActive
+                          ? 'Category deactivated'
+                          : 'Category activated',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } else if (value == 'delete') {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Delete Category'),
+                  content: Text(
+                    'Are you sure you want to delete "${category.categoryName}"?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed == true) {
+                await _repository.deleteCategory(category.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Category deleted'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _loadCounts(); // Refresh counts
+                }
+              }
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'edit',
+              child: Row(
+                children: [
+                  Icon(Icons.edit, size: 20),
+                  SizedBox(width: 12),
+                  Text('Edit'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'toggle',
+              child: Row(
+                children: [
+                  Icon(
+                    category.isActive ? Icons.visibility_off : Icons.visibility,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(category.isActive ? 'Deactivate' : 'Activate'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete, size: 20, color: Colors.red),
+                  SizedBox(width: 12),
+                  Text('Delete', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditCategoryDialog(MarketplaceCategory category) {
+    final nameController = TextEditingController(text: category.categoryName);
+    final sortOrderController =
+        TextEditingController(text: category.sortOrder.toString());
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Category'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Category Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: sortOrderController,
+              decoration: const InputDecoration(
+                labelText: 'Sort Order',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              final sortOrder = int.tryParse(sortOrderController.text.trim());
+
+              if (name.isEmpty || sortOrder == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter valid values'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              await _repository.updateCategory(category.id, {
+                'categoryName': name,
+                'sortOrder': sortOrder,
+              });
+
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Category updated'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // LISTINGS LIST (Active, Sold, Withdrawn)
+  // ============================================================
 
   Widget _buildListingsList() {
     Stream<List<MarketplaceListing>> stream;
@@ -241,7 +582,7 @@ class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
         final listings = snapshot.data ?? [];
 
         if (listings.isEmpty) {
-          return _buildEmptyState();
+          return _buildEmptyListings();
         }
 
         return ListView.builder(
@@ -255,7 +596,7 @@ class _AdminMarketplaceScreenState extends State<AdminMarketplaceScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyListings() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
