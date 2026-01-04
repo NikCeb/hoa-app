@@ -30,7 +30,6 @@ class IncidentRepository {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
-    // Get user info
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
     final userData = userDoc.data() as Map<String, dynamic>;
     final reporterName = '${userData['firstName']} ${userData['lastName']}';
@@ -38,7 +37,6 @@ class IncidentRepository {
 
     String? proofRef;
 
-    // Upload photo if provided
     if (proofImage != null) {
       proofRef = await _uploadProofImage(user.uid, proofImage);
     }
@@ -57,7 +55,6 @@ class IncidentRepository {
       proofRef: proofRef,
     );
 
-    // Save to Firestore
     final docRef = await _reportsCollection.add(report.toMap());
 
     return report.copyWith(id: docRef.id);
@@ -109,30 +106,15 @@ class IncidentRepository {
     });
   }
 
+  /// FIX: Client-side filtering - uses model's _parseStatus which handles all variations
   Stream<List<IncidentReport>> getReportsByStatus(IncidentStatus status) {
-    String statusValue;
-    switch (status) {
-      case IncidentStatus.newReport:
-        statusValue = 'NEW';
-        break;
-      case IncidentStatus.underReview:
-        statusValue = 'IN_REVIEW';
-        break;
-      case IncidentStatus.resolved:
-        statusValue = 'RESOLVED';
-        break;
-      case IncidentStatus.dismissed:
-        statusValue = 'DISMISSED';
-        break;
-    }
-
     return _reportsCollection
-        .where('status', isEqualTo: statusValue)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs
           .map((doc) => IncidentReport.fromFirestore(doc))
+          .where((report) => report.status == status)
           .toList();
     });
   }
@@ -153,23 +135,19 @@ class IncidentRepository {
     int dismissed = 0;
 
     for (var doc in snapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>?;
-      if (data == null) continue;
+      final report = IncidentReport.fromFirestore(doc);
 
-      final status = data['status'] as String?;
-
-      switch (status?.toUpperCase()) {
-        case 'NEW':
+      switch (report.status) {
+        case IncidentStatus.newReport:
           newCount++;
           break;
-        case 'IN_REVIEW':
-        case 'UNDER_REVIEW':
+        case IncidentStatus.underReview:
           underReview++;
           break;
-        case 'RESOLVED':
+        case IncidentStatus.resolved:
           resolved++;
           break;
-        case 'DISMISSED':
+        case IncidentStatus.dismissed:
           dismissed++;
           break;
       }

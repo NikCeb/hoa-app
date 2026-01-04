@@ -14,9 +14,7 @@ class _AdminIncidentReportsScreenState
     extends State<AdminIncidentReportsScreen> {
   final _repository = IncidentRepository();
 
-  // Track which view is active: 'all', 'new', 'underReview', 'resolved'
   String _activeView = 'all';
-
   Map<String, int> _stats = {};
   bool _isLoadingStats = true;
 
@@ -61,68 +59,53 @@ class _AdminIncidentReportsScreenState
       ),
       body: Column(
         children: [
-          // Clickable Cards Navigation
+          // 1x4 Cards Navigation
           Container(
             color: const Color(0xFF2563EB),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
             child: _isLoadingStats
-                ? const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
+                ? const SizedBox(
+                    height: 80,
+                    child: Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
                   )
-                : Column(
+                : Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildNavigationCard(
-                              title: 'All',
-                              count: _stats['total'] ?? 0,
-                              icon: Icons.list_alt,
-                              color: Colors.blue,
-                              viewKey: 'all',
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildNavigationCard(
-                              title: 'New',
-                              count: _stats['new'] ?? 0,
-                              icon: Icons.new_releases,
-                              color: Colors.red,
-                              viewKey: 'new',
-                            ),
-                          ),
-                        ],
+                      _buildNavigationCard(
+                        title: 'All',
+                        count: _stats['total'] ?? 0,
+                        icon: Icons.list_alt,
+                        color: Colors.blue,
+                        viewKey: 'all',
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildNavigationCard(
-                              title: 'Under Review',
-                              count: _stats['underReview'] ?? 0,
-                              icon: Icons.rate_review,
-                              color: Colors.orange,
-                              viewKey: 'underReview',
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildNavigationCard(
-                              title: 'Resolved',
-                              count: _stats['resolved'] ?? 0,
-                              icon: Icons.check_circle,
-                              color: Colors.green,
-                              viewKey: 'resolved',
-                            ),
-                          ),
-                        ],
+                      _buildNavigationCard(
+                        title: 'New',
+                        count: _stats['new'] ?? 0,
+                        icon: Icons.error,
+                        color: Colors.red,
+                        viewKey: 'new',
+                        badge: true,
+                      ),
+                      _buildNavigationCard(
+                        title: 'Review',
+                        count: _stats['underReview'] ?? 0,
+                        icon: Icons.rate_review,
+                        color: Colors.orange,
+                        viewKey: 'underReview',
+                      ),
+                      _buildNavigationCard(
+                        title: 'Resolved',
+                        count: _stats['resolved'] ?? 0,
+                        icon: Icons.check_circle,
+                        color: Colors.green,
+                        viewKey: 'resolved',
                       ),
                     ],
                   ),
           ),
 
-          // Reports List (changes based on selected card)
+          // Reports List
           Expanded(
             child: _buildReportsList(),
           ),
@@ -137,69 +120,115 @@ class _AdminIncidentReportsScreenState
     required IconData icon,
     required Color color,
     required String viewKey,
+    bool badge = false,
   }) {
     final isActive = _activeView == viewKey;
 
-    return Card(
-      elevation: isActive ? 4 : 1,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: isActive
-            ? BorderSide(color: Colors.white, width: 2)
-            : BorderSide.none,
-      ),
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _activeView = viewKey;
-          });
-        },
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          width: 80,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-          decoration: BoxDecoration(
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Card(
+          elevation: isActive ? 6 : 2,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
-            gradient: isActive
-                ? LinearGradient(
-                    colors: [color, color.withOpacity(0.7)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            color: isActive ? null : color.withOpacity(0.15),
+            side: isActive
+                ? const BorderSide(color: Colors.white, width: 2)
+                : BorderSide.none,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: isActive ? Colors.white : color,
+          child: InkWell(
+            onTap: () {
+              setState(() => _activeView = viewKey);
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: 80,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                gradient: isActive
+                    ? LinearGradient(
+                        colors: [color, color.withOpacity(0.7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: isActive ? null : color.withOpacity(0.15),
               ),
-              const SizedBox(height: 4),
-              Text(
-                count.toString(),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isActive ? Colors.white : color,
-                ),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            icon,
+                            size: 22,
+                            color: isActive ? Colors.white : color,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            count.toString(),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: isActive ? Colors.white : color,
+                              height: 1.0,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: isActive ? Colors.white : color,
+                              height: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (badge && count > 0)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Center(
+                          child: Text(
+                            count.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              height: 1.0,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: isActive ? Colors.white : color,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -327,7 +356,6 @@ class _AdminIncidentReportsScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title and Status
               Row(
                 children: [
                   Expanded(
@@ -361,8 +389,6 @@ class _AdminIncidentReportsScreenState
                 ],
               ),
               const SizedBox(height: 8),
-
-              // Reporter and Type
               Row(
                 children: [
                   Icon(Icons.person_outline, size: 14, color: Colors.grey[600]),
@@ -381,8 +407,6 @@ class _AdminIncidentReportsScreenState
                 ],
               ),
               const SizedBox(height: 8),
-
-              // Location
               Row(
                 children: [
                   Icon(Icons.location_on_outlined,
@@ -398,8 +422,6 @@ class _AdminIncidentReportsScreenState
                 ],
               ),
               const SizedBox(height: 12),
-
-              // Time and Photo
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -446,7 +468,6 @@ class _AdminIncidentReportsScreenState
           child: ListView(
             controller: controller,
             children: [
-              // Handle
               Center(
                 child: Container(
                   width: 40,
@@ -458,16 +479,12 @@ class _AdminIncidentReportsScreenState
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Title and Status
               Text(
                 report.title,
                 style:
                     const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-
-              // Report Details
               _buildDetailRow(Icons.person, 'Reported by', report.reporterName),
               const SizedBox(height: 12),
               _buildDetailRow(Icons.label, 'Type', report.typeDisplayName),
@@ -476,8 +493,6 @@ class _AdminIncidentReportsScreenState
               const SizedBox(height: 12),
               _buildDetailRow(Icons.access_time, 'Reported', report.timeAgo),
               const SizedBox(height: 20),
-
-              // Description
               const Text(
                 'Description',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -488,8 +503,6 @@ class _AdminIncidentReportsScreenState
                 style: TextStyle(
                     fontSize: 15, color: Colors.grey[700], height: 1.5),
               ),
-
-              // Admin Notes
               if (report.adminNotes != null &&
                   report.adminNotes!.isNotEmpty) ...[
                 const SizedBox(height: 20),
@@ -512,8 +525,6 @@ class _AdminIncidentReportsScreenState
                   ),
                 ),
               ],
-
-              // Photo
               if (report.proofUrl != null || report.imageUrl != null) ...[
                 const SizedBox(height: 20),
                 const Text(
@@ -526,8 +537,6 @@ class _AdminIncidentReportsScreenState
                   child: Image.network(report.imageUrl ?? report.proofUrl!),
                 ),
               ],
-
-              // Action Buttons
               const SizedBox(height: 24),
               if (!report.isResolved && !report.isDismissed) ...[
                 Row(
