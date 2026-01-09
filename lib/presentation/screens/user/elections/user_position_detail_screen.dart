@@ -6,7 +6,7 @@ import '../../../../data/models/election_candidate.dart';
 import '../../../../data/repositories/elections_repository.dart';
 import 'user_nominate_for_position_screen.dart';
 import 'user_vote_for_position_screen.dart';
-import 'election_results_screen.dart';
+import 'user_election_results_screen.dart';
 
 class UserPositionDetailScreen extends StatefulWidget {
   final Election election;
@@ -403,7 +403,7 @@ class _UserPositionDetailScreenState extends State<UserPositionDetailScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ElectionResultsScreen(
+                            builder: (context) => UserElectionResultsScreen(
                               election: widget.election,
                             ),
                           ),

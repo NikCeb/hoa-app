@@ -4,19 +4,20 @@ import '../../../../data/models/election_position.dart';
 import '../../../../data/models/election_candidate.dart';
 import '../../../../data/repositories/elections_repository.dart';
 
-class ElectionResultsScreen extends StatefulWidget {
+class UserElectionResultsScreen extends StatefulWidget {
   final Election election;
 
-  const ElectionResultsScreen({
+  const UserElectionResultsScreen({
     Key? key,
     required this.election,
   }) : super(key: key);
 
   @override
-  State<ElectionResultsScreen> createState() => _ElectionResultsScreenState();
+  State<UserElectionResultsScreen> createState() =>
+      _UserElectionResultsScreenState();
 }
 
-class _ElectionResultsScreenState extends State<ElectionResultsScreen> {
+class _UserElectionResultsScreenState extends State<UserElectionResultsScreen> {
   final _repository = ElectionsRepository();
   bool _isLoading = true;
   Map<String, dynamic>? _results;
