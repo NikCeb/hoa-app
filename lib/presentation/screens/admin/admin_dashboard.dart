@@ -8,7 +8,7 @@ import 'incident_report/admin_incident_reports_screen.dart';
 import 'financial/admin_payments_screen.dart';
 import 'marketplace/admin_marketplace_screen.dart';
 import 'admin_profile_screen.dart';
-import 'elections/admin_elections_screen.dart';
+import 'elections/admin_elections_list_screen.dart';
 import 'announcement/admin_announcements_screen.dart';
 import '../../../data/repositories/auth_repository.dart';
 
@@ -144,7 +144,8 @@ class AdminDashboard extends StatelessWidget {
                     onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const AdminElectionsScreen(),
+                          builder: (context) =>
+                              const AdminElectionsListScreen(),
                         )),
                   ),
                   const SizedBox(height: 24),

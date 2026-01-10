@@ -1,15 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../../../../data/models/election.dart';
 import '../../../../data/repositories/elections_repository.dart';
 
 class AdminCreatePositionScreen extends StatefulWidget {
-  final Election election;
-
-  const AdminCreatePositionScreen({
-    Key? key,
-    required this.election,
-  }) : super(key: key);
+  const AdminCreatePositionScreen({super.key});
 
   @override
   State<AdminCreatePositionScreen> createState() =>
@@ -18,115 +11,74 @@ class AdminCreatePositionScreen extends StatefulWidget {
 
 class _AdminCreatePositionScreenState extends State<AdminCreatePositionScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _maxWinnersController = TextEditingController(text: '1');
-  final _sortOrderController = TextEditingController();
+  final _repository = ElectionsRepository();
 
-  DateTime? _nominationStart;
-  DateTime? _nominationEnd;
-  DateTime? _votingStart;
-  DateTime? _votingEnd;
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
 
-  TimeOfDay? _nominationStartTime;
-  TimeOfDay? _nominationEndTime;
-  TimeOfDay? _votingStartTime;
-  TimeOfDay? _votingEndTime;
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
 
   bool _isSubmitting = false;
 
-  final _repository = ElectionsRepository();
-
   @override
   void dispose() {
-    _nameController.dispose();
-    _maxWinnersController.dispose();
-    _sortOrderController.dispose();
+    _titleController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context, String type) async {
-    DateTime initialDate = DateTime.now();
-    DateTime firstDate = DateTime.now();
-    DateTime lastDate = DateTime.now().add(const Duration(days: 365));
-
-    final date = await showDatePicker(
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
       context: context,
-      initialDate: initialDate,
-      firstDate: firstDate,
-      lastDate: lastDate,
+      initialDate: DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF8B5CF6),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
-    if (date != null) {
-      setState(() {
-        switch (type) {
-          case 'nominationStart':
-            _nominationStart = date;
-            break;
-          case 'nominationEnd':
-            _nominationEnd = date;
-            break;
-          case 'votingStart':
-            _votingStart = date;
-            break;
-          case 'votingEnd':
-            _votingEnd = date;
-            break;
-        }
-      });
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
     }
   }
 
-  Future<void> _selectTime(BuildContext context, String type) async {
-    final time = await showTimePicker(
+  Future<void> _selectTime() async {
+    final picked = await showTimePicker(
       context: context,
-      initialTime: const TimeOfDay(hour: 8, minute: 0),
+      initialTime: const TimeOfDay(hour: 23, minute: 59),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF8B5CF6),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
-    if (time != null) {
-      setState(() {
-        switch (type) {
-          case 'nominationStart':
-            _nominationStartTime = time;
-            break;
-          case 'nominationEnd':
-            _nominationEndTime = time;
-            break;
-          case 'votingStart':
-            _votingStartTime = time;
-            break;
-          case 'votingEnd':
-            _votingEndTime = time;
-            break;
-        }
-      });
+    if (picked != null) {
+      setState(() => _selectedTime = picked);
     }
   }
 
-  Future<void> _submitPosition() async {
+  Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Validate dates
-    if (_nominationStart == null ||
-        _nominationEnd == null ||
-        _votingStart == null ||
-        _votingEnd == null) {
+    if (_selectedDate == null || _selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select all dates'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Validate times
-    if (_nominationStartTime == null ||
-        _nominationEndTime == null ||
-        _votingStartTime == null ||
-        _votingEndTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select all times'),
+          content: Text('Please select deadline date and time'),
           backgroundColor: Colors.red,
         ),
       );
@@ -136,58 +88,24 @@ class _AdminCreatePositionScreenState extends State<AdminCreatePositionScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final nominationStart = DateTime(
-        _nominationStart!.year,
-        _nominationStart!.month,
-        _nominationStart!.day,
-        _nominationStartTime!.hour,
-        _nominationStartTime!.minute,
+      // Combine date and time
+      final deadline = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
       );
 
-      final nominationEnd = DateTime(
-        _nominationEnd!.year,
-        _nominationEnd!.month,
-        _nominationEnd!.day,
-        _nominationEndTime!.hour,
-        _nominationEndTime!.minute,
-      );
-
-      final votingStart = DateTime(
-        _votingStart!.year,
-        _votingStart!.month,
-        _votingStart!.day,
-        _votingStartTime!.hour,
-        _votingStartTime!.minute,
-      );
-
-      final votingEnd = DateTime(
-        _votingEnd!.year,
-        _votingEnd!.month,
-        _votingEnd!.day,
-        _votingEndTime!.hour,
-        _votingEndTime!.minute,
-      );
-
-      // Validate logical order
-      if (nominationEnd.isBefore(nominationStart)) {
-        throw 'Nomination end must be after nomination start';
-      }
-      if (votingStart.isBefore(nominationEnd)) {
-        throw 'Voting start must be after nomination end';
-      }
-      if (votingEnd.isBefore(votingStart)) {
-        throw 'Voting end must be after voting start';
+      // Validate deadline is in the future
+      if (deadline.isBefore(DateTime.now())) {
+        throw Exception('Deadline must be in the future');
       }
 
-      await _repository.createPositionForElection(
-        electionId: widget.election.id,
-        positionName: _nameController.text.trim(),
-        maxWinners: int.parse(_maxWinnersController.text.trim()),
-        sortOrder: int.parse(_sortOrderController.text.trim()),
-        nominationStart: nominationStart,
-        nominationEnd: nominationEnd,
-        votingStart: votingStart,
-        votingEnd: votingEnd,
+      await _repository.createPosition(
+        positionName: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        deadline: deadline,
       );
 
       if (mounted) {
@@ -203,7 +121,7 @@ class _AdminCreatePositionScreenState extends State<AdminCreatePositionScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed: $e'),
+            content: Text('Error: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -227,7 +145,7 @@ class _AdminCreatePositionScreenState extends State<AdminCreatePositionScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Create Position',
+          'Create Position Election',
           style: TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -238,48 +156,16 @@ class _AdminCreatePositionScreenState extends State<AdminCreatePositionScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           children: [
-            // Election Info
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF8B5CF6).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.how_to_vote,
-                    color: Color(0xFF8B5CF6),
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      widget.election.electionName,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF8B5CF6),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Position Name
+            // Position Title
             TextFormField(
-              controller: _nameController,
+              controller: _titleController,
               decoration: InputDecoration(
-                labelText: 'Position Name *',
-                hintText: 'e.g., President, Treasurer',
-                prefixIcon: const Icon(Icons.workspace_premium),
+                labelText: 'Position Title',
+                hintText: 'e.g., HOA President, Treasurer',
+                prefixIcon:
+                    const Icon(Icons.work_outline, color: Color(0xFF8B5CF6)),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -288,120 +174,103 @@ class _AdminCreatePositionScreenState extends State<AdminCreatePositionScreen> {
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Please enter position name';
+                  return 'Please enter position title';
                 }
                 return null;
               },
             ),
             const SizedBox(height: 16),
 
-            // Max Winners & Sort Order
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _maxWinnersController,
-                    decoration: InputDecoration(
-                      labelText: 'Max Winners *',
-                      prefixIcon: const Icon(Icons.numbers),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Required';
-                      }
-                      return null;
-                    },
-                  ),
+            // Description
+            TextFormField(
+              controller: _descriptionController,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'Description',
+                hintText: 'Describe the position responsibilities...',
+                prefixIcon: const Icon(Icons.description_outlined,
+                    color: Color(0xFF8B5CF6)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _sortOrderController,
-                    decoration: InputDecoration(
-                      labelText: 'Sort Order *',
-                      prefixIcon: const Icon(Icons.sort),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Required';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Nomination Period
-            _buildPeriodSection(
-              title: 'Nomination Period',
-              icon: Icons.person_add,
-              color: Colors.blue,
-              startDate: _nominationStart,
-              endDate: _nominationEnd,
-              startTime: _nominationStartTime,
-              endTime: _nominationEndTime,
-              onSelectStartDate: () => _selectDate(context, 'nominationStart'),
-              onSelectEndDate: () => _selectDate(context, 'nominationEnd'),
-              onSelectStartTime: () => _selectTime(context, 'nominationStart'),
-              onSelectEndTime: () => _selectTime(context, 'nominationEnd'),
-            ),
-            const SizedBox(height: 24),
-
-            // Voting Period
-            _buildPeriodSection(
-              title: 'Voting Period',
-              icon: Icons.how_to_vote,
-              color: Colors.green,
-              startDate: _votingStart,
-              endDate: _votingEnd,
-              startTime: _votingStartTime,
-              endTime: _votingEndTime,
-              onSelectStartDate: () => _selectDate(context, 'votingStart'),
-              onSelectEndDate: () => _selectDate(context, 'votingEnd'),
-              onSelectStartTime: () => _selectTime(context, 'votingStart'),
-              onSelectEndTime: () => _selectTime(context, 'votingEnd'),
-            ),
-            const SizedBox(height: 24),
-
-            // Info Note
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                filled: true,
+                fillColor: Colors.white,
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline,
-                      color: Colors.orange, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Nomination period must end before voting period starts. Ensure adequate time for candidate approval.',
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter description';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+
+            // Deadline Section
+            const Text(
+              'Deadline',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Date Picker
+            InkWell(
+              onTap: _selectDate,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: Color(0xFF8B5CF6)),
+                    const SizedBox(width: 12),
+                    Text(
+                      _selectedDate == null
+                          ? 'Select Date'
+                          : '${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}',
                       style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[700],
+                        fontSize: 16,
+                        color:
+                            _selectedDate == null ? Colors.grey : Colors.black,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Time Picker
+            InkWell(
+              onTap: _selectTime,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.access_time, color: Color(0xFF8B5CF6)),
+                    const SizedBox(width: 12),
+                    Text(
+                      _selectedTime == null
+                          ? 'Select Time'
+                          : _selectedTime!.format(context),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color:
+                            _selectedTime == null ? Colors.grey : Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 32),
@@ -409,165 +278,36 @@ class _AdminCreatePositionScreenState extends State<AdminCreatePositionScreen> {
             // Submit Button
             SizedBox(
               height: 56,
-              child: ElevatedButton.icon(
-                onPressed: _isSubmitting ? null : _submitPosition,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.add),
-                label: Text(
-                  _isSubmitting ? 'Creating...' : 'Create Position',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submitForm,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF8B5CF6),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  elevation: 0,
                 ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Create Position',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPeriodSection({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required DateTime? startDate,
-    required DateTime? endDate,
-    required TimeOfDay? startTime,
-    required TimeOfDay? endTime,
-    required VoidCallback onSelectStartDate,
-    required VoidCallback onSelectEndDate,
-    required VoidCallback onSelectStartTime,
-    required VoidCallback onSelectEndTime,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Start Date & Time
-          const Text(
-            'Start',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onSelectStartDate,
-                  icon: const Icon(Icons.calendar_today, size: 18),
-                  label: Text(
-                    startDate == null
-                        ? 'Date'
-                        : '${startDate.month}/${startDate.day}/${startDate.year}',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onSelectStartTime,
-                  icon: const Icon(Icons.access_time, size: 18),
-                  label: Text(
-                    startTime == null ? 'Time' : startTime.format(context),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // End Date & Time
-          const Text(
-            'End',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onSelectEndDate,
-                  icon: const Icon(Icons.calendar_today, size: 18),
-                  label: Text(
-                    endDate == null
-                        ? 'Date'
-                        : '${endDate.month}/${endDate.day}/${endDate.year}',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onSelectEndTime,
-                  icon: const Icon(Icons.access_time, size: 18),
-                  label: Text(
-                    endTime == null ? 'Time' : endTime.format(context),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
