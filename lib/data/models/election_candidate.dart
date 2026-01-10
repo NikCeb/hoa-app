@@ -1,18 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-
-enum CandidateStatus { pending, approved, rejected }
 
 class ElectionCandidate {
   final String id;
-  final String electionId;
+  final String electionId; // Required in old schema
   final String positionId;
   final String userId;
   final String candidateName;
   final String? lotNumber;
   final String? photoUrl;
   final int voteCount;
-  final CandidateStatus status;
+  final String status; // String, not enum
+  final DateTime createdAt; // Was 'appliedAt' in new code
 
   ElectionCandidate({
     required this.id,
@@ -24,44 +22,46 @@ class ElectionCandidate {
     this.photoUrl,
     required this.voteCount,
     required this.status,
+    required this.createdAt,
   });
 
   factory ElectionCandidate.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
-    CandidateStatus parseStatus(String? value) {
-      switch (value?.toUpperCase()) {
-        case 'APPROVED':
-          return CandidateStatus.approved;
-        case 'REJECTED':
-          return CandidateStatus.rejected;
-        default:
-          return CandidateStatus.pending;
-      }
+    DateTime parseDate(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      return DateTime.now();
     }
 
     return ElectionCandidate(
       id: doc.id,
-      electionId: data['electionId'],
-      positionId: data['positionId'],
-      userId: data['userId'],
+      electionId: data['electionId'] ?? '',
+      positionId: data['positionId'] ?? '',
+      userId: data['userId'] ?? '',
       candidateName: data['candidateName'] ?? '',
       lotNumber: data['lotNumber'],
       photoUrl: data['photoUrl'],
       voteCount: data['voteCount'] ?? 0,
-      status: parseStatus(data['status']),
+      status: data['status'] ?? 'APPROVED',
+      createdAt: parseDate(data['createdAt'] ?? data['appliedAt']),
     );
   }
 
-  /// ✅ THIS IS WHAT YOUR UI NEEDS
-  Color get statusColor {
-    switch (status) {
-      case CandidateStatus.pending:
-        return const Color(0xFFF59E0B); // orange
-      case CandidateStatus.approved:
-        return const Color(0xFF10B981); // green
-      case CandidateStatus.rejected:
-        return const Color(0xFFEF4444); // red
-    }
+  Map<String, dynamic> toMap() {
+    return {
+      'electionId': electionId,
+      'positionId': positionId,
+      'userId': userId,
+      'candidateName': candidateName,
+      if (lotNumber != null) 'lotNumber': lotNumber,
+      if (photoUrl != null) 'photoUrl': photoUrl,
+      'voteCount': voteCount,
+      'status': status,
+      'createdAt': Timestamp.fromDate(createdAt),
+    };
   }
+
+  bool get isApproved => status == 'APPROVED';
 }

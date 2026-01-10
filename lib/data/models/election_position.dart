@@ -1,35 +1,28 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 
 class ElectionPosition {
   final String id;
   final String positionName;
-  final String electionId;
-  final int maxWinners;
-  final int sortOrder;
+  final String description;
+  final DateTime deadline;
   final bool isActive;
-  final DateTime nominationStart;
-  final DateTime nominationEnd;
-  final DateTime votingStart;
-  final DateTime votingEnd;
+  final bool endedEarly; // NEW: Track if admin ended early
+  final DateTime createdAt;
 
   ElectionPosition({
     required this.id,
     required this.positionName,
-    required this.electionId,
-    required this.maxWinners,
-    required this.sortOrder,
+    required this.description,
+    required this.deadline,
     required this.isActive,
-    required this.nominationStart,
-    required this.nominationEnd,
-    required this.votingStart,
-    required this.votingEnd,
+    this.endedEarly = false, // Default to false
+    required this.createdAt,
   });
 
   factory ElectionPosition.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
-    // Better date parsing with fallbacks
+    // Safe date parsing
     DateTime parseDate(dynamic value, DateTime fallback) {
       if (value == null) return fallback;
       if (value is Timestamp) return value.toDate();
@@ -37,145 +30,85 @@ class ElectionPosition {
       return fallback;
     }
 
-    // Default dates: nomination starts now, ends in 7 days
-    // Voting starts after nomination, ends in 14 days
-    final defaultNomStart = DateTime.now();
-    final defaultNomEnd = DateTime.now().add(const Duration(days: 7));
-    final defaultVoteStart = DateTime.now().add(const Duration(days: 7));
-    final defaultVoteEnd = DateTime.now().add(const Duration(days: 14));
-
     return ElectionPosition(
       id: doc.id,
       positionName: data['positionName'] ?? '',
-      electionId: data['electionId'] ?? '',
-      maxWinners: data['maxWinners'] ?? 1,
-      sortOrder: data['sortOrder'] ?? 0,
+      description: data['description'] ?? '',
+      deadline: parseDate(
+          data['deadline'], DateTime.now().add(const Duration(days: 30))),
       isActive: data['isActive'] ?? true,
-      nominationStart: parseDate(data['nominationStart'], defaultNomStart),
-      nominationEnd: parseDate(data['nominationEnd'], defaultNomEnd),
-      votingStart: parseDate(data['votingStart'], defaultVoteStart),
-      votingEnd: parseDate(data['votingEnd'], defaultVoteEnd),
+      endedEarly: data['endedEarly'] ?? false, // NEW
+      createdAt: parseDate(data['createdAt'], DateTime.now()),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'positionName': positionName,
-      'electionId': electionId,
-      'maxWinners': maxWinners,
-      'sortOrder': sortOrder,
+      'description': description,
+      'deadline': Timestamp.fromDate(deadline),
       'isActive': isActive,
-      'nominationStart': Timestamp.fromDate(nominationStart),
-      'nominationEnd': Timestamp.fromDate(nominationEnd),
-      'votingStart': Timestamp.fromDate(votingStart),
-      'votingEnd': Timestamp.fromDate(votingEnd),
+      'endedEarly': endedEarly, // NEW
+      'createdAt': Timestamp.fromDate(createdAt),
     };
   }
 
   // Computed properties
-  bool get isNominationOpen {
-    final now = DateTime.now();
-    final result =
-        isActive && now.isAfter(nominationStart) && now.isBefore(nominationEnd);
-    return result;
-  }
+  bool get isEnded => endedEarly || DateTime.now().isAfter(deadline); // UPDATED
 
-  bool get isVotingOpen {
-    final now = DateTime.now();
-    return isActive && now.isAfter(votingStart) && now.isBefore(votingEnd);
-  }
-
-  bool get hasNominationStarted {
-    return DateTime.now().isAfter(nominationStart);
-  }
-
-  bool get hasNominationEnded {
-    return DateTime.now().isAfter(nominationEnd);
-  }
-
-  bool get hasVotingStarted {
-    return DateTime.now().isAfter(votingStart);
-  }
-
-  bool get hasVotingEnded {
-    return DateTime.now().isAfter(votingEnd);
-  }
-
-  bool get isUpcoming {
-    return !hasNominationStarted;
-  }
+  bool get canApplyOrVote => isActive && !isEnded;
 
   String get statusText {
-    if (isNominationOpen) return 'Nominations Open';
-    if (isVotingOpen) return 'Voting Open';
-    if (hasVotingEnded) return 'Closed';
-    if (hasNominationEnded && !hasVotingStarted) return 'Awaiting Voting';
-    if (hasNominationEnded) return 'Nominations Closed';
-    if (isUpcoming) return 'Upcoming';
-    return 'Upcoming';
-  }
-
-  Color get statusColor {
-    if (isNominationOpen) return const Color(0xFF3B82F6); // Blue
-    if (isVotingOpen) return const Color(0xFF10B981); // Green
-    if (hasVotingEnded) return const Color(0xFF6B7280); // Grey
-    if (hasNominationEnded && !hasVotingStarted) {
-      return const Color(0xFF8B5CF6); // Purple - awaiting voting
-    }
-    return const Color(0xFFF59E0B); // Orange for upcoming
+    if (!isActive) return 'Deleted';
+    if (endedEarly) return 'Ended Early';
+    if (isEnded) return 'Voting Ended';
+    return 'Active';
   }
 
   String get timeRemainingText {
+    if (isEnded) return 'Ended';
+
     final now = DateTime.now();
+    final remaining = deadline.difference(now);
 
-    if (isUpcoming) {
-      final until = nominationStart.difference(now);
-      return _formatDuration(until, 'until nominations');
-    }
+    if (remaining.isNegative) return 'Ended';
 
-    if (isNominationOpen) {
-      final remaining = nominationEnd.difference(now);
-      return _formatDuration(remaining, 'left for nominations');
-    }
-
-    if (hasNominationEnded && !hasVotingStarted) {
-      final until = votingStart.difference(now);
-      return _formatDuration(until, 'until voting');
-    }
-
-    if (isVotingOpen) {
-      final remaining = votingEnd.difference(now);
-      return _formatDuration(remaining, 'left for voting');
-    }
-
-    return 'Closed';
-  }
-
-  String _formatDuration(Duration duration, String suffix) {
-    if (duration.isNegative) return 'Ended';
-
-    if (duration.inDays > 0) {
-      return '${duration.inDays}d $suffix';
-    } else if (duration.inHours > 0) {
-      return '${duration.inHours}h $suffix';
-    } else if (duration.inMinutes > 0) {
-      return '${duration.inMinutes}m $suffix';
+    if (remaining.inDays > 0) {
+      return '${remaining.inDays} day${remaining.inDays > 1 ? 's' : ''} left';
+    } else if (remaining.inHours > 0) {
+      return '${remaining.inHours} hour${remaining.inHours > 1 ? 's' : ''} left';
+    } else if (remaining.inMinutes > 0) {
+      return '${remaining.inMinutes} minute${remaining.inMinutes > 1 ? 's' : ''} left';
     } else {
-      return 'Less than 1m $suffix';
+      return 'Less than 1 minute left';
     }
   }
 
-  // Debug helper
-  void printDebugInfo() {
-    final now = DateTime.now();
-    print('=== Position: $positionName ===');
-    print('isActive: $isActive');
-    print('Now: $now');
-    print('Nomination: $nominationStart - $nominationEnd');
-    print('Voting: $votingStart - $votingEnd');
-    print('isNominationOpen: $isNominationOpen');
-    print('isVotingOpen: $isVotingOpen');
-    print('Status: $statusText');
-    print('==============================');
+  // Format deadline for display
+  String get deadlineFormatted {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    final month = months[deadline.month - 1];
+    final day = deadline.day;
+    final year = deadline.year;
+    final hour = deadline.hour > 12
+        ? deadline.hour - 12
+        : (deadline.hour == 0 ? 12 : deadline.hour);
+    final minute = deadline.minute.toString().padLeft(2, '0');
+    final period = deadline.hour >= 12 ? 'PM' : 'AM';
+
+    return '$month $day, $year $hour:$minute $period';
   }
 }
