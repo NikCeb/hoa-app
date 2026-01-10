@@ -1,22 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../../data/models/election.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../../data/repositories/elections_repository.dart';
 import '../../../../data/models/election_position.dart';
 import '../../../../data/models/election_candidate.dart';
-import '../../../../data/repositories/elections_repository.dart';
-import 'user_nominate_for_position_screen.dart';
-import 'user_vote_for_position_screen.dart';
-import 'user_election_results_screen.dart';
 
 class UserPositionDetailScreen extends StatefulWidget {
-  final Election election;
   final ElectionPosition position;
 
   const UserPositionDetailScreen({
-    Key? key,
-    required this.election,
+    super.key,
     required this.position,
-  }) : super(key: key);
+  });
 
   @override
   State<UserPositionDetailScreen> createState() =>
@@ -24,41 +19,155 @@ class UserPositionDetailScreen extends StatefulWidget {
 }
 
 class _UserPositionDetailScreenState extends State<UserPositionDetailScreen> {
-  final repository = ElectionsRepository();
+  final _repository = ElectionsRepository();
   final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
+
+  bool _isLoading = false;
+  bool _hasApplied = false;
   bool _hasVoted = false;
-  bool _isCheckingVote = true;
+  String? _votedCandidateId;
 
   @override
   void initState() {
     super.initState();
-    // Debug: Print position status info
-    widget.position.printDebugInfo();
-    _checkVoteStatus();
+    _checkUserStatus();
   }
 
-  Future<void> _checkVoteStatus() async {
+  Future<void> _checkUserStatus() async {
+    final userId = _auth.currentUser!.uid;
+
+    final hasApplied = await _repository.hasUserApplied(
+      positionId: widget.position.id,
+      userId: userId,
+    );
+
+    final hasVoted = await _repository.hasUserVoted(
+      positionId: widget.position.id,
+      userId: userId,
+    );
+
+    String? votedCandidateId;
+    if (hasVoted) {
+      votedCandidateId = await _repository.getUserVotedCandidateId(
+        positionId: widget.position.id,
+        userId: userId,
+      );
+    }
+
+    if (mounted) {
+      setState(() {
+        _hasApplied = hasApplied;
+        _hasVoted = hasVoted;
+        _votedCandidateId = votedCandidateId;
+      });
+    }
+  }
+
+  Future<void> _applyForPosition() async {
+    setState(() => _isLoading = true);
+
     try {
-      final userId = _auth.currentUser?.uid;
-      if (userId != null) {
-        final hasVoted = await repository.hasUserVotedForPosition(
-          electionId: widget.election.id,
-          positionId: widget.position.id,
-          oderId: userId,
+      final userId = _auth.currentUser!.uid;
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userData = userDoc.data()!;
+
+      final candidateName = '${userData['firstName']} ${userData['lastName']}';
+      final lotNumber = userData['lotNumber'];
+
+      await _repository.applyForPosition(
+        positionId: widget.position.id,
+        userId: userId,
+        candidateName: candidateName,
+        lotNumber: lotNumber,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Application submitted! You have 1 vote.'),
+            backgroundColor: Colors.green,
+          ),
         );
-        if (mounted) {
-          setState(() {
-            _hasVoted = hasVoted;
-            _isCheckingVote = false;
-          });
-        }
+        _checkUserStatus();
       }
     } catch (e) {
-      print('Error checking vote status: $e');
       if (mounted) {
-        setState(() => _isCheckingVote = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _voteForCandidate(ElectionCandidate candidate) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Vote'),
+        content: Text(
+          'Vote for ${candidate.candidateName}?\n\nYou can only vote once per position.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Vote'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final userId = _auth.currentUser!.uid;
+
+      await _repository.voteForCandidate(
+        positionId: widget.position.id,
+        candidateId: candidate.id,
+        userId: userId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Voted for ${candidate.candidateName}!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _checkUserStatus();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<int> _getTotalVotes() async {
+    return await _repository.getTotalVotes(widget.position.id);
   }
 
   @override
@@ -72,9 +181,9 @@ class _UserPositionDetailScreenState extends State<UserPositionDetailScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          widget.position.positionName,
-          style: const TextStyle(
+        title: const Text(
+          'Position Details',
+          style: TextStyle(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -83,160 +192,723 @@ class _UserPositionDetailScreenState extends State<UserPositionDetailScreen> {
       ),
       body: Column(
         children: [
-          // Header Info
+          // Position Info Header
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF8B5CF6),
-                  const Color(0xFF8B5CF6).withOpacity(0.8),
-                ],
-              ),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.election.electionName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    widget.position.statusText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.access_time,
-                        size: 16, color: Colors.white70),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.position.timeRemainingText,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
+                    Expanded(
+                      child: Text(
+                        widget.position.positionName,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
+                    _buildStatusBadge(),
                   ],
                 ),
-                // Show voted badge
-                if (_hasVoted && !_isCheckingVote) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.check_circle, size: 16, color: Colors.white),
-                        SizedBox(width: 6),
-                        Text(
-                          'You have voted',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                const SizedBox(height: 8),
+                Text(
+                  widget.position.description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildInfoRow(
+                  Icons.event,
+                  'Deadline',
+                  widget.position.deadlineFormatted,
+                ),
+                if (!widget.position.isEnded)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: _buildInfoRow(
+                      Icons.timer,
+                      'Time Remaining',
+                      widget.position.timeRemainingText,
+                      valueColor: Colors.orange[700],
                     ),
                   ),
-                ],
+                if (widget.position.isEnded)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline,
+                              size: 20, color: Colors.grey[700]),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Voting has ended - Results are final',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
 
-          // Candidates List
+          // Results View (when ended) or Active View
           Expanded(
-            child: StreamBuilder<List<ElectionCandidate>>(
-              stream: repository
-                  .getApprovedCandidatesForPosition(widget.position.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final candidates = snapshot.data ?? [];
-
-                if (candidates.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.people_outline,
-                            size: 80, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No Candidates Yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.position.isNominationOpen
-                              ? 'Be the first to nominate!'
-                              : 'No one has been nominated for this position',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: candidates.length,
-                  itemBuilder: (context, index) {
-                    return _buildCandidateCard(candidates[index]);
-                  },
-                );
-              },
-            ),
+            child: widget.position.isEnded
+                ? _buildResultsView()
+                : _buildActiveView(),
           ),
 
-          // Action Buttons
-          _buildActionButtons(context),
+          // Action Buttons (only when active)
+          if (widget.position.canApplyOrVote) _buildActionButtons(),
         ],
       ),
     );
   }
 
-  Widget _buildActionButtons(BuildContext context) {
+  // ==================== RESULTS VIEW (Read-Only) ====================
+
+  Widget _buildResultsView() {
+    return FutureBuilder<int>(
+      future: _getTotalVotes(),
+      builder: (context, totalVotesSnapshot) {
+        final totalVotes = totalVotesSnapshot.data ?? 0;
+
+        return StreamBuilder<List<ElectionCandidate>>(
+          stream: _repository.getCandidatesForPosition(widget.position.id),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF8B5CF6),
+                ),
+              );
+            }
+
+            final candidates = snapshot.data ?? [];
+
+            if (candidates.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.people_outline,
+                        size: 80, color: Colors.grey[300]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No candidates participated',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final winner = candidates.first;
+            final otherCandidates =
+                candidates.length > 1 ? candidates.sublist(1) : [];
+
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // Status Header
+                Row(
+                  children: [
+                    const Icon(Icons.bar_chart,
+                        color: Color(0xFF8B5CF6), size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Final Results',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Total: $totalVotes vote${totalVotes != 1 ? 's' : ''}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Winner Card
+                _buildWinnerCard(winner, totalVotes),
+                const SizedBox(height: 24),
+
+                // Other Candidates Section
+                if (otherCandidates.isNotEmpty) ...[
+                  Text(
+                    'Other Candidates',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...otherCandidates.asMap().entries.map((entry) {
+                    return _buildResultCandidateCard(
+                      entry.value,
+                      entry.key + 2, // Rank starts at 2 (winner is #1)
+                      totalVotes,
+                    );
+                  }).toList(),
+                ],
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildWinnerCard(ElectionCandidate winner, int totalVotes) {
+    final percentage = totalVotes > 0
+        ? ((winner.voteCount / totalVotes) * 100).toStringAsFixed(1)
+        : '0.0';
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF8B5CF6).withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Trophy Icon
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.emoji_events,
+              size: 40,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // "WINNER" Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              '🏆 WINNER',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Divider
+          Container(
+            height: 1,
+            color: Colors.white.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+
+          // Winner Info
+          Text(
+            winner.candidateName,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (winner.lotNumber != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Lot: ${winner.lotNumber}',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white.withOpacity(0.9),
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+
+          // Vote Stats
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.how_to_vote, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '${winner.voteCount} votes ($percentage%)',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Divider
+          Container(
+            height: 1,
+            color: Colors.white.withOpacity(0.3),
+          ),
+          const SizedBox(height: 12),
+
+          // Congratulations
+          const Text(
+            '🎊 Congratulations! 🎊',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultCandidateCard(
+      ElectionCandidate candidate, int rank, int totalVotes) {
+    final percentage = totalVotes > 0
+        ? ((candidate.voteCount / totalVotes) * 100).toStringAsFixed(1)
+        : '0.0';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            // Rank
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  '#$rank',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // Candidate Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    candidate.candidateName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (candidate.lotNumber != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Lot: ${candidate.lotNumber}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Vote Count
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${candidate.voteCount}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF8B5CF6),
+                  ),
+                ),
+                Text(
+                  '$percentage%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== ACTIVE VIEW (Can Vote/Apply) ====================
+
+  Widget _buildActiveView() {
+    return StreamBuilder<List<ElectionCandidate>>(
+      stream: _repository.getCandidatesForPosition(widget.position.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: Color(0xFF8B5CF6),
+            ),
+          );
+        }
+
+        final candidates = snapshot.data ?? [];
+
+        if (candidates.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.people_outline, size: 80, color: Colors.grey[300]),
+                const SizedBox(height: 16),
+                Text(
+                  'No candidates yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Be the first to apply!',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: candidates.length,
+          itemBuilder: (context, index) {
+            return _buildActiveCandidateCard(candidates[index], index + 1);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildActiveCandidateCard(ElectionCandidate candidate, int rank) {
+    final isCurrentUser = candidate.userId == _auth.currentUser!.uid;
+    final hasVotedForThis = _votedCandidateId == candidate.id;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      elevation: hasVotedForThis ? 3 : 1,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                // Rank
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: rank == 1
+                        ? Colors.amber.withOpacity(0.2)
+                        : Colors.grey.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '#$rank',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: rank == 1 ? Colors.amber[800] : Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // Candidate Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              candidate.candidateName,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (isCurrentUser)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'You',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (candidate.lotNumber != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Lot: ${candidate.lotNumber}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Vote Count
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.how_to_vote,
+                        size: 18,
+                        color: Color(0xFF8B5CF6),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${candidate.voteCount}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF8B5CF6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // Vote Button
+            if (!isCurrentUser && !_hasVoted) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed:
+                      _isLoading ? null : () => _voteForCandidate(candidate),
+                  icon: const Icon(Icons.check_circle_outline, size: 18),
+                  label: const Text('Vote'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF8B5CF6),
+                    side: const BorderSide(color: Color(0xFF8B5CF6)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
+            // Voted Indicator
+            if (hasVotedForThis) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 18),
+                    SizedBox(width: 6),
+                    Text(
+                      'You voted for this candidate',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== HELPER WIDGETS ====================
+
+  Widget _buildStatusBadge() {
+    Color color;
+    String text;
+
+    if (!widget.position.isActive) {
+      color = Colors.grey;
+      text = 'Closed';
+    } else if (widget.position.isEnded) {
+      color = Colors.red;
+      text = 'Ended';
+    } else {
+      color = Colors.green;
+      text = 'Active';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value,
+      {Color? valueColor}) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[700],
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: valueColor ?? Colors.black87,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -250,282 +922,61 @@ class _UserPositionDetailScreenState extends State<UserPositionDetailScreen> {
         ],
       ),
       child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Show status info if neither nomination nor voting is open
-            if (!widget.position.isNominationOpen &&
-                !widget.position.isVotingOpen &&
-                !widget.position.hasVotingEnded)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 12),
+        child: _hasApplied
+            ? Container(
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.green.withOpacity(0.3),
+                  ),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(Icons.info_outline,
-                        color: Colors.orange, size: 20),
-                    const SizedBox(width: 8),
+                    Icon(Icons.check_circle, color: Colors.green),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        widget.position.isUpcoming
-                            ? 'Nominations will open soon'
-                            : 'Waiting for voting period to start',
-                        style: const TextStyle(
-                          color: Colors.orange,
-                          fontSize: 13,
+                        "You're running for this position!",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.green,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-
-            Row(
-              children: [
-                // Nominate Button
-                if (widget.position.isNominationOpen)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => UserNominateForPositionScreen(
-                              election: widget.election,
-                              position: widget.position,
-                            ),
+              )
+            : SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _applyForPosition,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.person_add),
-                      label: const Text('Nominate'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
+                        )
+                      : const Icon(Icons.person_add),
+                  label: Text(
+                    _isLoading ? 'Applying...' : 'Apply for This Position',
                   ),
-
-                if (widget.position.isNominationOpen &&
-                    widget.position.isVotingOpen)
-                  const SizedBox(width: 12),
-
-                // Vote Button
-                if (widget.position.isVotingOpen && !_hasVoted)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _isCheckingVote
-                          ? null
-                          : () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      UserVoteForPositionScreen(
-                                    election: widget.election,
-                                    position: widget.position,
-                                  ),
-                                ),
-                              );
-                              // Refresh vote status after voting
-                              _checkVoteStatus();
-                            },
-                      icon: _isCheckingVote
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.how_to_vote),
-                      label: const Text('Vote'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8B5CF6),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
-
-                // Already Voted - View Results
-                if (widget.position.isVotingOpen && _hasVoted)
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: Colors.green.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.check_circle,
-                              color: Colors.green, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Vote Submitted',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                // Voting Ended - View Results
-                if (widget.position.hasVotingEnded)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => UserElectionResultsScreen(
-                              election: widget.election,
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.emoji_events),
-                      label: const Text('View Results'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8B5CF6),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-
-                // Upcoming State
-                if (widget.position.isUpcoming)
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: Colors.orange.withOpacity(0.3)),
-                      ),
-                      child: const Text(
-                        'Coming Soon',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.orange,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCandidateCard(ElectionCandidate candidate) {
-    final showVoteCount = widget.position.hasVotingEnded;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: const Color(0xFF8B5CF6),
-              backgroundImage: candidate.photoUrl != null
-                  ? NetworkImage(candidate.photoUrl!)
-                  : null,
-              child: candidate.photoUrl == null
-                  ? Text(
-                      candidate.candidateName[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    candidate.candidateName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (candidate.lotNumber != null)
-                    Text(
-                      'Lot ${candidate.lotNumber}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (showVoteCount)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8B5CF6).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${candidate.voteCount} votes',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF8B5CF6),
+                    elevation: 0,
                   ),
                 ),
               ),
-          ],
-        ),
       ),
     );
   }

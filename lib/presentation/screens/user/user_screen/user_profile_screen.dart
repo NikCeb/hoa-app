@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../data/repositories/auth_repository.dart';
-import '../elections/user_elections_screen.dart';
+import '../elections/user_elections_list_screen.dart';
 import '../user_settings/user_settings_screen.dart';
 import '../user_settings/user_help_screen.dart';
 
@@ -142,7 +142,7 @@ class ProfileScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const UserElectionsScreen(),
+                builder: (context) => const UserElectionsListScreen(),
               ),
             );
           },
